@@ -170,6 +170,7 @@
                     ${contact ? `<span class="contact">${escapeHtml(contact)}</span>` : ''}
                 </div>
                 <div class="player-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')" title="Edit">Edit</button>
                     <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)" title="Move up">&uarr;</button>
                     <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)" title="Move down">&darr;</button>
                     <button class="btn btn-sm btn-danger" onclick="app.removePlayer('${p.id}')">Remove</button>
@@ -262,6 +263,49 @@
         refreshAll();
     }
 
+    // --- Edit Player ---
+    function editPlayer(id) {
+        const player = getPlayerById(id);
+        if (!player) return;
+
+        document.getElementById('edit-player-id').value = id;
+        document.getElementById('edit-player-name').value = player.name;
+        document.getElementById('edit-player-phone').value = player.phone || '';
+        document.getElementById('edit-player-email').value = player.email || '';
+        document.getElementById('edit-player-modal').style.display = 'flex';
+    }
+
+    document.getElementById('edit-player-cancel').addEventListener('click', () => {
+        document.getElementById('edit-player-modal').style.display = 'none';
+    });
+
+    document.getElementById('edit-player-save').addEventListener('click', () => {
+        const id = document.getElementById('edit-player-id').value;
+        const player = getPlayerById(id);
+        if (!player) return;
+
+        const name = document.getElementById('edit-player-name').value.trim();
+        if (!name) {
+            showToast('Name cannot be empty', 'error');
+            return;
+        }
+
+        const duplicate = players.find(p => p.id !== id && p.name.toLowerCase() === name.toLowerCase());
+        if (duplicate) {
+            showToast('A player with this name already exists', 'error');
+            return;
+        }
+
+        player.name = name;
+        player.phone = document.getElementById('edit-player-phone').value.trim();
+        player.email = document.getElementById('edit-player-email').value.trim();
+
+        persist();
+        document.getElementById('edit-player-modal').style.display = 'none';
+        showToast(`${name} updated`);
+        refreshAll();
+    });
+
     // --- Challenge System ---
     const MAX_CHALLENGE_DISTANCE = 3;
 
@@ -331,9 +375,28 @@
         persist();
         showToast(`${challenger.name} has challenged ${challenged.name}!`);
         refreshAll();
+
+        // Offer WhatsApp notification if challenged player has a phone number
+        if (challenged.phone) {
+            const phone = challenged.phone.replace(/\s+/g, '').replace(/^0/, '44');
+            const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder! Get in touch to arrange your match.`;
+            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
+            document.getElementById('notify-message').textContent =
+                `Notify ${challenged.name} via WhatsApp?`;
+            document.getElementById('notify-whatsapp').href = waUrl;
+            document.getElementById('notify-modal').style.display = 'flex';
+        }
     }
 
     document.getElementById('create-challenge-btn').addEventListener('click', createChallenge);
+
+    document.getElementById('notify-skip').addEventListener('click', () => {
+        document.getElementById('notify-modal').style.display = 'none';
+    });
+    document.getElementById('notify-whatsapp').addEventListener('click', () => {
+        document.getElementById('notify-modal').style.display = 'none';
+    });
 
     function renderOpenChallenges() {
         const container = document.getElementById('open-challenges');
@@ -654,6 +717,7 @@
     window.app = {
         removePlayer,
         movePlayer,
+        editPlayer,
         cancelChallenge,
     };
 

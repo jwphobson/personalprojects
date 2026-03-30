@@ -693,6 +693,17 @@ footer {
     font-size: 0.8rem;
 }
 
+/* === WhatsApp Button === */
+.btn-whatsapp {
+    background: #25d366;
+    color: var(--white);
+    text-decoration: none;
+}
+
+.btn-whatsapp:hover {
+    background: #1da851;
+}
+
 /* === Responsive === */
 @media (max-width: 600px) {
     header { padding: 1.25rem 1rem; }
