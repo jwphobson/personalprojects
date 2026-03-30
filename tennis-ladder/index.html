@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Club Tennis Ladder</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>Club Tennis Ladder</h1>
+            <p class="subtitle">Challenge. Compete. Climb.</p>
+        </div>
+    </header>
+
+    <nav>
+        <button class="nav-btn active" data-tab="standings">Standings</button>
+        <button class="nav-btn" data-tab="challenge">Challenge</button>
+        <button class="nav-btn" data-tab="results">Record Result</button>
+        <button class="nav-btn" data-tab="history">Match History</button>
+        <button class="nav-btn" data-tab="players">Manage Players</button>
+    </nav>
+
+    <main>
+        <!-- Standings Tab -->
+        <section id="standings" class="tab-content active">
+            <div class="section-header">
+                <h2>Ladder Standings</h2>
+                <div class="filter-bar">
+                    <select id="standings-filter">
+                        <option value="all">All Players</option>
+                        <option value="active">Active (played in last 30 days)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="standings-table-wrapper">
+                <table class="standings-table">
+                    <thead>
+                        <tr>
+                            <th class="col-rank">#</th>
+                            <th class="col-player">Player</th>
+                            <th class="col-stat">W</th>
+                            <th class="col-stat">L</th>
+                            <th class="col-stat">Win %</th>
+                            <th class="col-stat">Streak</th>
+                            <th class="col-last">Last Played</th>
+                        </tr>
+                    </thead>
+                    <tbody id="standings-body">
+                    </tbody>
+                </table>
+            </div>
+            <p class="empty-state" id="standings-empty">No players yet. Add players in the "Manage Players" tab to get started.</p>
+        </section>
+
+        <!-- Challenge Tab -->
+        <section id="challenge" class="tab-content">
+            <h2>Issue a Challenge</h2>
+            <p class="tab-description">Players can challenge anyone up to <strong>3 positions</strong> above them on the ladder. If the challenger wins, they take the higher position.</p>
+            <div class="challenge-form">
+                <div class="form-group">
+                    <label for="challenger-select">Challenger (lower ranked)</label>
+                    <select id="challenger-select">
+                        <option value="">Select challenger...</option>
+                    </select>
+                </div>
+                <div class="vs-badge">VS</div>
+                <div class="form-group">
+                    <label for="challenged-select">Challenged (higher ranked)</label>
+                    <select id="challenged-select">
+                        <option value="">Select opponent...</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="create-challenge-btn">Create Challenge</button>
+
+            <h3 class="mt-2">Open Challenges</h3>
+            <div id="open-challenges" class="challenges-list">
+                <p class="empty-state" id="challenges-empty">No open challenges.</p>
+            </div>
+        </section>
+
+        <!-- Record Result Tab -->
+        <section id="results" class="tab-content">
+            <h2>Record Match Result</h2>
+            <p class="tab-description">Select an open challenge or record a friendly match. Ladder positions only change for challenge matches.</p>
+
+            <div class="result-type-toggle">
+                <button class="toggle-btn active" data-type="challenge">Challenge Match</button>
+                <button class="toggle-btn" data-type="friendly">Friendly Match</button>
+            </div>
+
+            <div id="challenge-result-form" class="result-form">
+                <div class="form-group">
+                    <label for="challenge-select-result">Select Challenge</label>
+                    <select id="challenge-select-result">
+                        <option value="">Select an open challenge...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="challenge-winner">Winner</label>
+                    <select id="challenge-winner">
+                        <option value="">Select winner...</option>
+                    </select>
+                </div>
+                <div class="score-entry">
+                    <h4>Score (optional)</h4>
+                    <div class="sets-row">
+                        <div class="set-score">
+                            <label>Set 1</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="s1p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="s1p2" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="set-score">
+                            <label>Set 2</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="s2p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="s2p2" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="set-score">
+                            <label>Set 3</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="s3p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="s3p2" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="submit-challenge-result-btn">Submit Result</button>
+            </div>
+
+            <div id="friendly-result-form" class="result-form" style="display:none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="friendly-player1">Player 1</label>
+                        <select id="friendly-player1">
+                            <option value="">Select player...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="friendly-player2">Player 2</label>
+                        <select id="friendly-player2">
+                            <option value="">Select player...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="friendly-winner">Winner</label>
+                    <select id="friendly-winner">
+                        <option value="">Select winner...</option>
+                    </select>
+                </div>
+                <div class="score-entry">
+                    <h4>Score (optional)</h4>
+                    <div class="sets-row">
+                        <div class="set-score">
+                            <label>Set 1</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="fs1p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="fs1p2" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="set-score">
+                            <label>Set 2</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="fs2p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="fs2p2" placeholder="0">
+                            </div>
+                        </div>
+                        <div class="set-score">
+                            <label>Set 3</label>
+                            <div class="score-inputs">
+                                <input type="number" min="0" max="7" id="fs3p1" placeholder="0">
+                                <span>-</span>
+                                <input type="number" min="0" max="7" id="fs3p2" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="submit-friendly-result-btn">Submit Result</button>
+            </div>
+        </section>
+
+        <!-- Match History Tab -->
+        <section id="history" class="tab-content">
+            <div class="section-header">
+                <h2>Match History</h2>
+                <div class="filter-bar">
+                    <select id="history-filter">
+                        <option value="all">All Matches</option>
+                        <option value="challenge">Challenge Matches</option>
+                        <option value="friendly">Friendly Matches</option>
+                    </select>
+                </div>
+            </div>
+            <div id="match-history-list" class="history-list">
+                <p class="empty-state" id="history-empty">No matches recorded yet.</p>
+            </div>
+        </section>
+
+        <!-- Manage Players Tab -->
+        <section id="players" class="tab-content">
+            <h2>Manage Players</h2>
+            <div class="add-player-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="player-name">Player Name</label>
+                        <input type="text" id="player-name" placeholder="e.g. John Smith">
+                    </div>
+                    <div class="form-group">
+                        <label for="player-phone">Phone (optional)</label>
+                        <input type="tel" id="player-phone" placeholder="e.g. 07700 900000">
+                    </div>
+                    <div class="form-group">
+                        <label for="player-email">Email (optional)</label>
+                        <input type="email" id="player-email" placeholder="e.g. john@example.com">
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="add-player-btn">Add Player</button>
+            </div>
+
+            <h3 class="mt-2">Current Players</h3>
+            <div id="players-list" class="players-grid">
+                <p class="empty-state" id="players-empty">No players added yet.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Club Tennis Ladder &copy; 2026 | Data stored locally in your browser</p>
+    </footer>
+
+    <div id="toast" class="toast"></div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <h3 id="confirm-title">Confirm</h3>
+            <p id="confirm-message"></p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
+                <button class="btn btn-danger" id="confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
