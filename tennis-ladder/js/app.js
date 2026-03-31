@@ -363,8 +363,9 @@
             return;
         }
 
+        const newChallengeId = generateId();
         challenges.push({
-            id: generateId(),
+            id: newChallengeId,
             challengerId,
             challengedId,
             createdAt: new Date().toISOString(),
@@ -372,53 +373,44 @@
 
         persist();
         showToast(`${challenger.name} has challenged ${challenged.name}!`);
+        refreshAll();
 
-        // Capture values before refreshAll in case of issues
-        const challengedName = challenged.name;
-        const challengerName = challenger.name;
-        const challengedPhone = challenged.phone;
-
-        try { refreshAll(); } catch (e) { console.error('refreshAll error:', e); }
-
-        // Show WhatsApp notification popup after a short delay to ensure DOM is ready
-        setTimeout(function () {
-            try {
-                var waBtn = document.getElementById('notify-whatsapp');
-                var notifyMsg = document.getElementById('notify-message');
-                var notifyModal = document.getElementById('notify-modal');
-
-                if (!notifyModal || !notifyMsg || !waBtn) {
-                    console.error('Notify modal elements not found');
-                    return;
-                }
-
-                if (challengedPhone) {
-                    var phone = challengedPhone.replace(/\s+/g, '').replace(/^0/, '44');
-                    var message = 'Hi ' + challengedName + ', you\'ve been challenged by ' + challengerName + ' on the tennis ladder! Get in touch to arrange your match.';
-                    var waUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
-
-                    notifyMsg.textContent = 'Notify ' + challengedName + ' via WhatsApp?';
-                    waBtn.href = waUrl;
-                    waBtn.style.display = '';
-                } else {
-                    notifyMsg.textContent = 'No phone number on file for ' + challengedName + '. Add one via Manage Players > Edit to enable WhatsApp notifications.';
-                    waBtn.style.display = 'none';
-                }
-                notifyModal.style.display = 'flex';
-            } catch (e) {
-                console.error('Notify modal error:', e);
-            }
-        }, 100);
+        // Automatically prompt to notify the challenged player
+        notifyChallenge(newChallengeId);
     }
 
     document.getElementById('create-challenge-btn').addEventListener('click', createChallenge);
 
-    document.getElementById('notify-skip').addEventListener('click', () => {
-        document.getElementById('notify-modal').style.display = 'none';
-    });
-    document.getElementById('notify-whatsapp').addEventListener('click', () => {
-        document.getElementById('notify-modal').style.display = 'none';
-    });
+    // --- Notify via Web Share API / SMS / WhatsApp ---
+    function notifyChallenge(challengeId) {
+        const challenge = challenges.find(c => c.id === challengeId);
+        if (!challenge) return;
+
+        const challenger = getPlayerById(challenge.challengerId);
+        const challenged = getPlayerById(challenge.challengedId);
+        if (!challenger || !challenged) return;
+
+        if (!challenged.phone) {
+            showToast('Add a phone number for ' + challenged.name + ' via Edit to enable notifications', 'error');
+            return;
+        }
+
+        const message = 'Hi ' + challenged.name + ', you\'ve been challenged by ' + challenger.name + ' on the tennis ladder! Get in touch to arrange your match.';
+        const phone = challenged.phone.replace(/\s+/g, '').replace(/^0/, '44');
+
+        // Try Web Share API first (opens native share sheet on mobile)
+        if (navigator.share) {
+            navigator.share({
+                title: 'Tennis Ladder Challenge',
+                text: message,
+            }).catch(function () {
+                // User cancelled share - that's fine
+            });
+        } else {
+            // Fallback: open WhatsApp directly
+            window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(message), '_blank');
+        }
+    }
 
     function renderOpenChallenges() {
         const container = document.getElementById('open-challenges');
@@ -433,12 +425,14 @@
             const challenged = getPlayerById(c.challengedId);
             if (!challenger || !challenged) return '';
 
+            const hasPhone = challenged.phone ? '' : ' disabled title="No phone number"';
             return `<div class="challenge-card">
                 <div>
                     <div class="players">#${challenger.position} ${escapeHtml(challenger.name)} vs #${challenged.position} ${escapeHtml(challenged.name)}</div>
                     <div class="date">Created ${formatDate(c.createdAt)}</div>
                 </div>
                 <div class="actions">
+                    <button class="btn btn-sm btn-notify" onclick="app.notifyChallenge('${c.id}')"${hasPhone}>Notify</button>
                     <button class="btn btn-sm btn-danger" onclick="app.cancelChallenge('${c.id}')">Cancel</button>
                 </div>
             </div>`;
@@ -733,6 +727,7 @@
         movePlayer,
         editPlayer,
         cancelChallenge,
+        notifyChallenge,
     };
 
     // --- Init ---
