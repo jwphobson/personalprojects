@@ -376,7 +376,8 @@
         showToast(`${challenger.name} has challenged ${challenged.name}!`);
         refreshAll();
 
-        // Offer WhatsApp notification if challenged player has a phone number
+        // Offer WhatsApp notification
+        const waBtn = document.getElementById('notify-whatsapp');
         if (challenged.phone) {
             const phone = challenged.phone.replace(/\s+/g, '').replace(/^0/, '44');
             const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder! Get in touch to arrange your match.`;
@@ -384,9 +385,14 @@
 
             document.getElementById('notify-message').textContent =
                 `Notify ${challenged.name} via WhatsApp?`;
-            document.getElementById('notify-whatsapp').href = waUrl;
-            document.getElementById('notify-modal').style.display = 'flex';
+            waBtn.href = waUrl;
+            waBtn.style.display = '';
+        } else {
+            document.getElementById('notify-message').textContent =
+                `No phone number on file for ${challenged.name}. Add one via Manage Players > Edit to enable WhatsApp notifications.`;
+            waBtn.style.display = 'none';
         }
+        document.getElementById('notify-modal').style.display = 'flex';
     }
 
     document.getElementById('create-challenge-btn').addEventListener('click', createChallenge);
