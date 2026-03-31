@@ -6,6 +6,29 @@
 (function () {
     'use strict';
 
+    // --- Basic Admin Protection ---
+    const ADMIN_EMAILS = [
+        'phoenixbrute@gmail.com',
+        'jh@perspectiveeconomics.com'
+    ];
+
+    let adminVerified = false;
+
+    function requireAdmin() {
+        if (adminVerified) return true;
+
+        const email = prompt('Admin access required');
+        if (!email || !ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
+            showToast('Not authorised', 'error');
+            return false;
+        }
+
+        adminVerified = true;
+        showToast('Admin access granted');
+        refreshAll();
+        return true;
+    }
+
     // --- Data Layer (Firebase) ---
     const db = firebase.database();
     const refs = {
@@ -44,12 +67,44 @@
         return p ? p.name : 'Unknown';
     }
 
+    function maskPhone(phone) {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length < 4) return '••••';
+        return `••••••${digits.slice(-4)}`;
+    }
+
+    function maskEmail(email) {
+        if (!email) return '';
+        const [name, domain] = email.split('@');
+        if (!name || !domain) return email;
+
+        const maskedName = name.length <= 2
+            ? `${name[0] || ''}•`
+            : `${name[0]}${'•'.repeat(Math.max(1, name.length - 2))}${name[name.length - 1]}`;
+
+        return `${maskedName}@${domain}`;
+    }
+
+    function normaliseUkPhone(phone) {
+        if (!phone) return '';
+        const digits = phone.replace(/\D/g, '');
+        if (digits.startsWith('44')) return digits;
+        if (digits.startsWith('0')) return `44${digits.slice(1)}`;
+        return digits;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
     // --- Toast Notification ---
     function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
         toast.textContent = message;
         toast.className = 'toast ' + type;
-        // Force reflow
         void toast.offsetWidth;
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 2500);
@@ -98,7 +153,6 @@
         const emptyMsg = document.getElementById('standings-empty');
         const filter = document.getElementById('standings-filter').value;
 
-        // Sort by ladder position
         const sorted = [...players].sort((a, b) => a.position - b.position);
 
         let filtered = sorted;
@@ -144,29 +198,42 @@
         const emptyMsg = document.getElementById('players-empty');
 
         if (players.length === 0) {
-            list.innerHTML = '<p class="empty-state" id="players-empty">No players added yet.</p>';
+            list.innerHTML = '';
+            emptyMsg.style.display = 'block';
             return;
         }
 
+        emptyMsg.style.display = 'none';
+
         const sorted = [...players].sort((a, b) => a.position - b.position);
         list.innerHTML = sorted.map(p => {
-            const contact = [p.phone, p.email].filter(Boolean).join(' | ');
+            const contact = [
+                p.phone ? maskPhone(p.phone) : '',
+                p.email ? maskEmail(p.email) : ''
+            ].filter(Boolean).join(' | ');
+
+            const adminButtons = adminVerified ? `
+                <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')" title="Edit">Edit</button>
+                <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)" title="Move up">&uarr;</button>
+                <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)" title="Move down">&darr;</button>
+                <button class="btn btn-sm btn-danger" onclick="app.removePlayer('${p.id}')">Remove</button>
+            ` : '';
+
             return `<div class="player-card">
                 <div class="player-info">
                     <span class="name">#${p.position} ${escapeHtml(p.name)}</span>
                     ${contact ? `<span class="contact">${escapeHtml(contact)}</span>` : ''}
                 </div>
                 <div class="player-actions">
-                    <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')" title="Edit">Edit</button>
-                    <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)" title="Move up">&uarr;</button>
-                    <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)" title="Move down">&darr;</button>
-                    <button class="btn btn-sm btn-danger" onclick="app.removePlayer('${p.id}')">Remove</button>
+                    ${adminButtons}
                 </div>
             </div>`;
         }).join('');
     }
 
     function addPlayer() {
+        if (!requireAdmin()) return;
+
         const nameInput = document.getElementById('player-name');
         const phoneInput = document.getElementById('player-phone');
         const emailInput = document.getElementById('player-email');
@@ -211,6 +278,8 @@
     });
 
     async function removePlayer(id) {
+        if (!requireAdmin()) return;
+
         const player = getPlayerById(id);
         if (!player) return;
 
@@ -220,12 +289,10 @@
         const removedPos = player.position;
         players = players.filter(p => p.id !== id);
 
-        // Close gaps in positions
         players.forEach(p => {
             if (p.position > removedPos) p.position--;
         });
 
-        // Remove their open challenges
         challenges = challenges.filter(c => c.challengerId !== id && c.challengedId !== id);
 
         persist();
@@ -234,6 +301,8 @@
     }
 
     function movePlayer(id, direction) {
+        if (!requireAdmin()) return;
+
         const player = getPlayerById(id);
         if (!player) return;
 
@@ -252,6 +321,8 @@
 
     // --- Edit Player ---
     function editPlayer(id) {
+        if (!requireAdmin()) return;
+
         const player = getPlayerById(id);
         if (!player) return;
 
@@ -267,6 +338,8 @@
     });
 
     document.getElementById('edit-player-save').addEventListener('click', () => {
+        if (!requireAdmin()) return;
+
         const id = document.getElementById('edit-player-id').value;
         const player = getPlayerById(id);
         if (!player) return;
@@ -294,7 +367,7 @@
     });
 
     // --- Challenge System ---
-    const MAX_CHALLENGE_DISTANCE = 3;
+    const MAX_CHALLENGE_DISTANCE = 2;
 
     function renderChallenges() {
         populateChallengerSelects();
@@ -342,7 +415,6 @@
             return;
         }
 
-        // Check for existing challenge between these players
         const existing = challenges.find(c =>
             (c.challengerId === challengerId && c.challengedId === challengedId) ||
             (c.challengerId === challengedId && c.challengedId === challengerId)
@@ -364,7 +436,6 @@
         showToast(`${challenger.name} has challenged ${challenged.name}!`);
         refreshAll();
 
-        // Automatically prompt to notify the challenged player
         notifyChallenge(newChallengeId);
     }
 
@@ -385,29 +456,29 @@
         }
 
         const message = 'Hi ' + challenged.name + ', you\'ve been challenged by ' + challenger.name + ' on the tennis ladder! Get in touch to arrange your match.';
-        const phone = challenged.phone.replace(/\s+/g, '').replace(/^0/, '44');
+        const phone = normaliseUkPhone(challenged.phone);
 
-        // Try Web Share API first (opens native share sheet on mobile)
         if (navigator.share) {
             navigator.share({
                 title: 'Tennis Ladder Challenge',
                 text: message,
-            }).catch(function () {
-                // User cancelled share - that's fine
-            });
+            }).catch(function () {});
         } else {
-            // Fallback: open WhatsApp directly
             window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(message), '_blank');
         }
     }
 
     function renderOpenChallenges() {
         const container = document.getElementById('open-challenges');
+        const emptyMsg = document.getElementById('challenges-empty');
 
         if (challenges.length === 0) {
-            container.innerHTML = '<p class="empty-state" id="challenges-empty">No open challenges.</p>';
+            container.innerHTML = '';
+            emptyMsg.style.display = 'block';
+            container.appendChild(emptyMsg);
             return;
         }
+        emptyMsg.style.display = 'none';
 
         container.innerHTML = challenges.map(c => {
             const challenger = getPlayerById(c.challengerId);
@@ -463,20 +534,6 @@
         });
     }
 
-    document.getElementById('challenge-select-result').addEventListener('change', function () {
-        const winnerSel = document.getElementById('challenge-winner');
-        const challenge = challenges.find(c => c.id === this.value);
-
-        if (!challenge) {
-            winnerSel.innerHTML = '<option value="">Select winner...</option>';
-            return;
-        }
-
-        winnerSel.innerHTML = `<option value="">Select winner...</option>
-            <option value="${challenge.challengerId}">${escapeHtml(getPlayerName(challenge.challengerId))}</option>
-            <option value="${challenge.challengedId}">${escapeHtml(getPlayerName(challenge.challengedId))}</option>`;
-    });
-
     function populateFriendlySelects() {
         const sorted = [...players].sort((a, b) => a.position - b.position);
         const options = sorted.map(p =>
@@ -485,79 +542,98 @@
 
         document.getElementById('friendly-player1').innerHTML = '<option value="">Select player...</option>' + options;
         document.getElementById('friendly-player2').innerHTML = '<option value="">Select player...</option>' + options;
-        document.getElementById('friendly-winner').innerHTML = '<option value="">Select winner...</option>';
     }
 
-    function updateFriendlyWinner() {
-        const p1 = document.getElementById('friendly-player1').value;
-        const p2 = document.getElementById('friendly-player2').value;
-        const winnerSel = document.getElementById('friendly-winner');
+    function parseScoreValue(id) {
+        const value = document.getElementById(id).value.trim();
+        if (value === '') return null;
+        const n = Number(value);
+        return Number.isInteger(n) && n >= 0 ? n : NaN;
+    }
 
-        if (!p1 || !p2 || p1 === p2) {
-            winnerSel.innerHTML = '<option value="">Select winner...</option>';
-            return;
+    function getStructuredScore(prefix) {
+        const s1p1 = parseScoreValue(`${prefix}1p1`);
+        const s1p2 = parseScoreValue(`${prefix}1p2`);
+        const s2p1 = parseScoreValue(`${prefix}2p1`);
+        const s2p2 = parseScoreValue(`${prefix}2p2`);
+        const tbp1 = parseScoreValue(`${prefix}tbp1`);
+        const tbp2 = parseScoreValue(`${prefix}tbp2`);
+
+        if ([s1p1, s1p2, s2p1, s2p2].some(v => v === null || Number.isNaN(v))) {
+            return { error: 'Enter valid scores for Set 1 and Set 2' };
         }
 
-        winnerSel.innerHTML = `<option value="">Select winner...</option>
-            <option value="${p1}">${escapeHtml(getPlayerName(p1))}</option>
-            <option value="${p2}">${escapeHtml(getPlayerName(p2))}</option>`;
-    }
+        if (s1p1 === s1p2 || s2p1 === s2p2) {
+            return { error: 'Set scores cannot be tied' };
+        }
 
-    document.getElementById('friendly-player1').addEventListener('change', updateFriendlyWinner);
-    document.getElementById('friendly-player2').addEventListener('change', updateFriendlyWinner);
+        const set1Winner = s1p1 > s1p2 ? 'p1' : 'p2';
+        const set2Winner = s2p1 > s2p2 ? 'p1' : 'p2';
 
-    function getScoreFromInputs(prefix) {
-        const sets = [];
-        for (let i = 1; i <= 3; i++) {
-            const p1 = document.getElementById(`${prefix}${i}p1`).value;
-            const p2 = document.getElementById(`${prefix}${i}p2`).value;
-            if (p1 !== '' && p2 !== '') {
-                sets.push(`${p1}-${p2}`);
+        let winnerSlot;
+        let scoreText = `${s1p1}-${s1p2}, ${s2p1}-${s2p2}`;
+
+        if (set1Winner === set2Winner) {
+            winnerSlot = set1Winner;
+        } else {
+            if (tbp1 === null || tbp2 === null || Number.isNaN(tbp1) || Number.isNaN(tbp2)) {
+                return { error: 'Enter a championship tie-break score when sets are split' };
             }
+
+            if (tbp1 === tbp2) {
+                return { error: 'Championship tie-break cannot be tied' };
+            }
+
+            winnerSlot = tbp1 > tbp2 ? 'p1' : 'p2';
+            scoreText += `, CTB ${tbp1}-${tbp2}`;
         }
-        return sets.length > 0 ? sets.join(', ') : null;
+
+        return { winnerSlot, scoreText };
     }
 
     function clearScoreInputs(prefix) {
-        for (let i = 1; i <= 3; i++) {
-            document.getElementById(`${prefix}${i}p1`).value = '';
-            document.getElementById(`${prefix}${i}p2`).value = '';
-        }
+        const ids = [
+            `${prefix}1p1`, `${prefix}1p2`,
+            `${prefix}2p1`, `${prefix}2p2`,
+            `${prefix}tbp1`, `${prefix}tbp2`
+        ];
+
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
     }
 
     function submitChallengeResult() {
         const challengeId = document.getElementById('challenge-select-result').value;
-        const winnerId = document.getElementById('challenge-winner').value;
 
         if (!challengeId) {
             showToast('Please select a challenge', 'error');
-            return;
-        }
-        if (!winnerId) {
-            showToast('Please select the winner', 'error');
             return;
         }
 
         const challenge = challenges.find(c => c.id === challengeId);
         if (!challenge) return;
 
+        const scoreResult = getStructuredScore('s');
+        if (scoreResult.error) {
+            showToast(scoreResult.error, 'error');
+            return;
+        }
+
         const challenger = getPlayerById(challenge.challengerId);
         const challenged = getPlayerById(challenge.challengedId);
+        const winnerId = scoreResult.winnerSlot === 'p1' ? challenge.challengerId : challenge.challengedId;
         const loserId = winnerId === challenge.challengerId ? challenge.challengedId : challenge.challengerId;
         const winner = getPlayerById(winnerId);
         const loser = getPlayerById(loserId);
 
-        const score = getScoreFromInputs('s');
-
         let positionChange = null;
 
-        // If challenger wins, they take the challenged player's position
-        // Everyone between shifts down by one
         if (winnerId === challenge.challengerId) {
             const oldChallengerPos = challenger.position;
             const challengedPos = challenged.position;
 
-            // Move everyone between challenged and challenger down one spot
             players.forEach(p => {
                 if (p.position >= challengedPos && p.position < oldChallengerPos && p.id !== challenger.id) {
                     p.position++;
@@ -568,7 +644,6 @@
             positionChange = `${winner.name} moves from #${oldChallengerPos} to #${challengedPos}`;
         }
 
-        // Update stats
         winner.wins++;
         winner.streak = winner.streak > 0 ? winner.streak + 1 : 1;
         winner.lastPlayed = new Date().toISOString();
@@ -577,25 +652,22 @@
         loser.streak = loser.streak < 0 ? loser.streak - 1 : -1;
         loser.lastPlayed = new Date().toISOString();
 
-        // Record match
         matches.unshift({
             id: generateId(),
             type: 'challenge',
             player1Id: challenge.challengerId,
             player2Id: challenge.challengedId,
             winnerId,
-            score,
+            score: scoreResult.scoreText,
             positionChange,
             date: new Date().toISOString(),
         });
 
-        // Remove the challenge
         challenges = challenges.filter(c => c.id !== challengeId);
 
         persist();
         clearScoreInputs('s');
         document.getElementById('challenge-select-result').value = '';
-        document.getElementById('challenge-winner').innerHTML = '<option value="">Select winner...</option>';
 
         showToast(`Result recorded! ${winner.name} defeats ${loser.name}`);
         refreshAll();
@@ -606,7 +678,6 @@
     function submitFriendlyResult() {
         const p1Id = document.getElementById('friendly-player1').value;
         const p2Id = document.getElementById('friendly-player2').value;
-        const winnerId = document.getElementById('friendly-winner').value;
 
         if (!p1Id || !p2Id) {
             showToast('Please select both players', 'error');
@@ -616,18 +687,18 @@
             showToast('Please select two different players', 'error');
             return;
         }
-        if (!winnerId) {
-            showToast('Please select the winner', 'error');
+
+        const scoreResult = getStructuredScore('fs');
+        if (scoreResult.error) {
+            showToast(scoreResult.error, 'error');
             return;
         }
 
-        const winner = getPlayerById(winnerId);
+        const winnerId = scoreResult.winnerSlot === 'p1' ? p1Id : p2Id;
         const loserId = winnerId === p1Id ? p2Id : p1Id;
+        const winner = getPlayerById(winnerId);
         const loser = getPlayerById(loserId);
 
-        const score = getScoreFromInputs('fs');
-
-        // Update stats (no position change for friendly)
         winner.wins++;
         winner.streak = winner.streak > 0 ? winner.streak + 1 : 1;
         winner.lastPlayed = new Date().toISOString();
@@ -642,7 +713,7 @@
             player1Id: p1Id,
             player2Id: p2Id,
             winnerId,
-            score,
+            score: scoreResult.scoreText,
             positionChange: null,
             date: new Date().toISOString(),
         });
@@ -651,7 +722,6 @@
         clearScoreInputs('fs');
         document.getElementById('friendly-player1').value = '';
         document.getElementById('friendly-player2').value = '';
-        document.getElementById('friendly-winner').innerHTML = '<option value="">Select winner...</option>';
 
         showToast(`Friendly match recorded! ${winner.name} defeats ${loser.name}`);
         refreshAll();
@@ -662,6 +732,7 @@
     // --- Match History ---
     function renderHistory() {
         const container = document.getElementById('match-history-list');
+        const emptyMsg = document.getElementById('history-empty');
         const filter = document.getElementById('history-filter').value;
 
         let filtered = matches;
@@ -670,9 +741,13 @@
         }
 
         if (filtered.length === 0) {
-            container.innerHTML = '<p class="empty-state" id="history-empty">No matches recorded yet.</p>';
+            container.innerHTML = '';
+            emptyMsg.style.display = 'block';
+            container.appendChild(emptyMsg);
             return;
         }
+
+        emptyMsg.style.display = 'none';
 
         container.innerHTML = filtered.map(m => {
             const p1Name = getPlayerName(m.player1Id);

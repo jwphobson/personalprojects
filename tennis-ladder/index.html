@@ -48,8 +48,7 @@
                             <th class="col-last">Last Played</th>
                         </tr>
                     </thead>
-                    <tbody id="standings-body">
-                    </tbody>
+                    <tbody id="standings-body"></tbody>
                 </table>
             </div>
             <p class="empty-state" id="standings-empty">No players yet. Add players in the "Manage Players" tab to get started.</p>
@@ -58,7 +57,7 @@
         <!-- Challenge Tab -->
         <section id="challenge" class="tab-content">
             <h2>Issue a Challenge</h2>
-            <p class="tab-description">Players can challenge anyone up to <strong>3 positions</strong> above them on the ladder. If the challenger wins, they take the higher position.</p>
+            <p class="tab-description">Players can challenge anyone up to <strong>2 positions</strong> above them on the ladder. If the challenger wins, they take the higher position.</p>
             <div class="challenge-form">
                 <div class="form-group">
                     <label for="challenger-select">Challenger (lower ranked)</label>
@@ -125,11 +124,11 @@
                             </div>
                         </div>
                         <div class="set-score">
-                            <label>Set 3</label>
+                            <label>Championship Tie-Break</label>
                             <div class="score-inputs">
-                                <input type="number" min="0" max="7" id="s3p1" placeholder="0">
+                                <input type="number" min="0" max="99" id="stbp1" placeholder="0">
                                 <span>-</span>
-                                <input type="number" min="0" max="7" id="s3p2" placeholder="0">
+                                <input type="number" min="0" max="99" id="stbp2" placeholder="0">
                             </div>
                         </div>
                     </div>
@@ -178,11 +177,11 @@
                             </div>
                         </div>
                         <div class="set-score">
-                            <label>Set 3</label>
+                            <label>Championship Tie-Break</label>
                             <div class="score-inputs">
-                                <input type="number" min="0" max="7" id="fs3p1" placeholder="0">
+                                <input type="number" min="0" max="99" id="fstbp1" placeholder="0">
                                 <span>-</span>
-                                <input type="number" min="0" max="7" id="fs3p2" placeholder="0">
+                                <input type="number" min="0" max="99" id="fstbp2" placeholder="0">
                             </div>
                         </div>
                     </div>
@@ -277,7 +276,6 @@
             </div>
         </div>
     </div>
-
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
