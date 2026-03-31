@@ -478,31 +478,32 @@ select {
 
 .sets-row {
     display: flex;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.score-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     flex-wrap: wrap;
 }
 
-.set-score label {
-    display: block;
-    font-size: 0.8rem;
+.score-row label {
+    min-width: 170px;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: var(--gray-600);
-    margin-bottom: 0.25rem;
+    color: var(--gray-700);
+    margin-bottom: 0;
 }
 
-.score-inputs {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.score-inputs input {
-    width: 48px;
+.score-row input {
+    width: 56px;
     text-align: center;
     padding: 0.5rem;
 }
 
-.score-inputs span {
+.score-row span {
     font-weight: 700;
     color: var(--gray-400);
 }
@@ -737,7 +738,25 @@ footer {
     main { padding: 1rem 0.75rem 2rem; }
     .challenge-form { flex-direction: column; align-items: stretch; }
     .vs-badge { align-self: center; }
-    .sets-row { flex-direction: column; gap: 0.5rem; }
-    .standings-table th, .standings-table td { padding: 0.5rem 0.4rem; font-size: 0.85rem; }
+
+    .sets-row { gap: 0.5rem; }
+
+    .score-row {
+        display: flex;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .score-row label {
+        min-width: auto;
+    }
+
+    .standings-table th,
+    .standings-table td {
+        padding: 0.5rem 0.4rem;
+        font-size: 0.85rem;
+    }
+
     .col-last { display: none; }
 }
