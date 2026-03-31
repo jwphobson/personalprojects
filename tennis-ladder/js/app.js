@@ -543,45 +543,52 @@
     .addEventListener("click", createChallenge);
 
   // --- Notify via Web Share API / SMS / WhatsApp ---
-  async function notifyChallenge(challengeId) {
-    const challenge = challenges.find((c) => c.id === challengeId);
-    if (!challenge) return;
+async function notifyChallenge(challengeId) {
+  const challenge = challenges.find((c) => c.id === challengeId);
+  if (!challenge) return;
 
-    const challenger = getPlayerById(challenge.challengerId);
-    const challenged = getPlayerById(challenge.challengedId);
-    if (!challenger || !challenged) return;
+  const challenger = getPlayerById(challenge.challengerId);
+  const challenged = getPlayerById(challenge.challengedId);
+  if (!challenger || !challenged) return;
 
-    const ladderUrl = window.location.href.split("#")[0];
-    const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder. Please arrange your match within ${CHALLENGE_EXPIRY_DAYS} days.\n\nLadder: ${ladderUrl}`;
+  const ladderUrl = window.location.href.split("#")[0];
+  const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder. Please arrange your match within ${CHALLENGE_EXPIRY_DAYS} days.\n\nLadder: ${ladderUrl}`;
 
-    if (challenged.phone) {
-      const phone = normaliseUkPhone(challenged.phone);
-      window.open(
-        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-        "_blank",
-      );
-      return;
-    }
-
-    if (navigator.share) {
-      navigator
-        .share({
-          title: "Tennis Ladder Challenge",
-          text: message,
-          url: ladderUrl,
-        })
-        .catch(() => {});
-      return;
-    }
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(message)
-        .then(() => showToast("Challenge message copied"))
-        .catch(() => showToast("Could not share challenge", "error"));
-    } else {
-      showToast("Sharing not supported on this device", "error");
-    }
+  if (challenged.phone) {
+    const phone = normaliseUkPhone(challenged.phone);
+    window.open(
+      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+      "_blank",
+    );
+    return;
   }
+
+  if (challenged.email) {
+    const subject = "Tennis Ladder Challenge";
+    window.location.href = `mailto:${challenged.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+    return;
+  }
+
+  if (navigator.share) {
+    navigator
+      .share({
+        title: "Tennis Ladder Challenge",
+        text: message,
+        url: ladderUrl,
+      })
+      .catch(() => {});
+    return;
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(message)
+      .then(() => showToast("Challenge message copied"))
+      .catch(() => showToast("Could not share challenge", "error"));
+  } else {
+    showToast("No phone or email available for this player", "error");
+  }
+}
 
   function renderOpenChallenges() {
     const container = document.getElementById("open-challenges");
