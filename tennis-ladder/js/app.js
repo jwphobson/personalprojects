@@ -217,10 +217,12 @@
       .map((p) => {
         const rankClass =
           p.position <= 3 ? `rank-${p.position}` : "rank-default";
+        const challengeWins = p.challengeWins || 0;
+        const challengeLosses = p.challengeLosses || 0;
         const winPct =
-          p.wins + p.losses > 0
-            ? Math.round((p.wins / (p.wins + p.losses)) * 100) + "%"
-            : "–";
+          challengeWins + challengeLosses > 0
+          ? Math.round((challengeWins / (challengeWins + challengeLosses)) * 100) + "%"
+          : "–";
         const streakText = p.streak
           ? p.streak > 0
             ? `W${p.streak}`
@@ -232,8 +234,8 @@
         return `<tr>
                 <td class="col-rank"><span class="rank-badge ${rankClass}">${p.position}</span></td>
                 <td><span class="player-name">${escapeHtml(p.name)}</span></td>
-                <td class="col-stat">${p.wins}</td>
-                <td class="col-stat">${p.losses}</td>
+                <td class="col-stat">${challengeWins}</td>
+                <td class="col-stat">${challengeLosses}</td>
                 <td class="col-stat">${winPct}</td>
                 <td class="col-stat"><span class="${streakClass}">${streakText}</span></td>
                 <td class="col-last">${formatDate(p.lastPlayed)}</td>
@@ -311,6 +313,10 @@
       position: players.length + 1,
       wins: 0,
       losses: 0,
+      challengeWins: 0,
+      challengeLosses: 0,
+      friendlyWins: 0,
+      friendlyLosses: 0,
       streak: 0,
       lastPlayed: null,
     };
@@ -671,6 +677,10 @@ async function notifyChallenge(challengeId) {
         position: index + 1,
         wins: 0,
         losses: 0,
+        challengeWins: 0,
+        challengeLosses: 0,
+        friendlyWins: 0,
+        friendlyLosses: 0,
         streak: 0,
         lastPlayed: null,
       }));
@@ -847,11 +857,13 @@ async function notifyChallenge(challengeId) {
       positionChange = `${winner.name} moves from #${oldChallengerPos} to #${challengedPos}`;
     }
 
-    winner.wins++;
+    winner.wins = (winner.wins || 0) + 1;
+    winner.challengeWins = (winner.challengeWins || 0) + 1;
     winner.streak = winner.streak > 0 ? winner.streak + 1 : 1;
     winner.lastPlayed = new Date().toISOString();
 
-    loser.losses++;
+    loser.losses = (loser.losses || 0) + 1;
+    loser.challengeLosses = (loser.challengeLosses || 0) + 1;
     loser.streak = loser.streak < 0 ? loser.streak - 1 : -1;
     loser.lastPlayed = new Date().toISOString();
 
@@ -904,12 +916,10 @@ async function notifyChallenge(challengeId) {
     const winner = getPlayerById(winnerId);
     const loser = getPlayerById(loserId);
 
-    winner.wins++;
-    winner.streak = winner.streak > 0 ? winner.streak + 1 : 1;
+    winner.friendlyWins = (winner.friendlyWins || 0) + 1;
     winner.lastPlayed = new Date().toISOString();
 
-    loser.losses++;
-    loser.streak = loser.streak < 0 ? loser.streak - 1 : -1;
+    loser.friendlyLosses = (loser.friendlyLosses || 0) + 1;
     loser.lastPlayed = new Date().toISOString();
 
     matches.unshift({
@@ -1110,27 +1120,26 @@ async function notifyChallenge(challengeId) {
 
     container.innerHTML = sorted
       .map((player) => {
-        const playerMatches = getPlayerMatches(player.id);
-        const challengeWins = playerMatches.filter(
-          (m) => m.type === "challenge" && m.winnerId === player.id,
-        ).length;
-        const friendlyWins = playerMatches.filter(
-          (m) => m.type === "friendly" && m.winnerId === player.id,
-        ).length;
+       const playerMatches = getPlayerMatches(player.id);
+        const challengeWins = player.challengeWins || 0;
+        const challengeLosses = player.challengeLosses || 0;
+        const friendlyWins = player.friendlyWins || 0;
+        const friendlyLosses = player.friendlyLosses || 0;
         const totalPlayed = playerMatches.length;
-        const winPct = totalPlayed
-          ? Math.round((player.wins / totalPlayed) * 100)
+
+        const challengePlayed = challengeWins + challengeLosses;
+        const challengeWinPct = challengePlayed
+          ? Math.round((challengeWins / challengePlayed) * 100)
           : 0;
 
         return `
             <div class="match-card">
                 <div class="match-players">${escapeHtml(player.name)}</div>
                 <div class="match-score">
-                    Position: #${player.position} · Played: ${totalPlayed} · Wins: ${player.wins} · Losses: ${player.losses} · Win %: ${winPct}%
+                    Position: #${player.position} · Challenge Played: ${challengePlayed} · Challenge W: ${challengeWins} · Challenge L: ${challengeLosses} · Challenge Win %: ${challengeWinPct}%
                 </div>
                 <div class="match-date">
-                    Challenge wins: ${challengeWins} · Friendly wins: ${friendlyWins} · Last played: ${formatDate(player.lastPlayed)}
-                </div>
+Friendly W: ${friendlyWins} · Friendly L: ${friendlyLosses} · Last played: ${formatDate(player.lastPlayed)}                </div>
             </div>
         `;
       })
