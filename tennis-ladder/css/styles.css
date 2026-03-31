@@ -60,6 +60,26 @@ header h1 {
     font-weight: 300;
 }
 
+.status-badge {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.2rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.status-online {
+    background: rgba(76, 175, 80, 0.3);
+    color: #a5d6a7;
+}
+
+.status-offline {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.6);
+}
+
 /* === Navigation === */
 nav {
     display: flex;

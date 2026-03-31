@@ -1,38 +1,27 @@
 // =====================================================================
 // Club Tennis Ladder - Application Logic
-// Data persisted to localStorage
+// Data synced in real-time via Firebase
 // =====================================================================
 
 (function () {
     'use strict';
 
-    // --- Data Layer ---
-    const STORAGE_KEYS = {
-        players: 'tennisLadder_players',
-        challenges: 'tennisLadder_challenges',
-        matches: 'tennisLadder_matches',
+    // --- Data Layer (Firebase) ---
+    const db = firebase.database();
+    const refs = {
+        players: db.ref('players'),
+        challenges: db.ref('challenges'),
+        matches: db.ref('matches'),
     };
 
-    function loadData(key) {
-        try {
-            return JSON.parse(localStorage.getItem(key)) || [];
-        } catch {
-            return [];
-        }
-    }
-
-    function saveData(key, data) {
-        localStorage.setItem(key, JSON.stringify(data));
-    }
-
-    let players = loadData(STORAGE_KEYS.players);
-    let challenges = loadData(STORAGE_KEYS.challenges);
-    let matches = loadData(STORAGE_KEYS.matches);
+    let players = [];
+    let challenges = [];
+    let matches = [];
 
     function persist() {
-        saveData(STORAGE_KEYS.players, players);
-        saveData(STORAGE_KEYS.challenges, challenges);
-        saveData(STORAGE_KEYS.matches, matches);
+        refs.players.set(players);
+        refs.challenges.set(challenges);
+        refs.matches.set(matches);
     }
 
     // --- Utility ---
@@ -730,7 +719,57 @@
         notifyChallenge,
     };
 
-    // --- Init ---
-    refreshAll();
+    // --- Real-time Sync ---
+    let dataLoaded = { players: false, challenges: false, matches: false };
+
+    function allDataLoaded() {
+        return dataLoaded.players && dataLoaded.challenges && dataLoaded.matches;
+    }
+
+    refs.players.on('value', function (snapshot) {
+        players = snapshot.val() || [];
+        dataLoaded.players = true;
+        if (allDataLoaded()) refreshAll();
+    });
+
+    refs.challenges.on('value', function (snapshot) {
+        challenges = snapshot.val() || [];
+        dataLoaded.challenges = true;
+        if (allDataLoaded()) refreshAll();
+    });
+
+    refs.matches.on('value', function (snapshot) {
+        matches = snapshot.val() || [];
+        dataLoaded.matches = true;
+        if (allDataLoaded()) refreshAll();
+    });
+
+    // --- One-time migration from localStorage ---
+    (function migrateFromLocalStorage() {
+        var localPlayers;
+        try {
+            localPlayers = JSON.parse(localStorage.getItem('tennisLadder_players'));
+        } catch (e) { return; }
+        if (!localPlayers || !localPlayers.length) return;
+
+        refs.players.once('value', function (snapshot) {
+            if (snapshot.val() && snapshot.val().length) return;
+            var localChallenges = JSON.parse(localStorage.getItem('tennisLadder_challenges')) || [];
+            var localMatches = JSON.parse(localStorage.getItem('tennisLadder_matches')) || [];
+            refs.players.set(localPlayers);
+            refs.challenges.set(localChallenges);
+            refs.matches.set(localMatches);
+            showToast('Data migrated to cloud');
+        });
+    })();
+
+    // --- Connection status ---
+    db.ref('.info/connected').on('value', function (snap) {
+        var el = document.getElementById('connection-status');
+        if (el) {
+            el.textContent = snap.val() ? 'Live' : 'Offline';
+            el.className = snap.val() ? 'status-badge status-online' : 'status-badge status-offline';
+        }
+    });
 
 })();
