@@ -155,11 +155,9 @@
         const emptyMsg = document.getElementById('players-empty');
 
         if (players.length === 0) {
-            list.innerHTML = '';
-            emptyMsg.style.display = 'block';
+            list.innerHTML = '<p class="empty-state" id="players-empty">No players added yet.</p>';
             return;
         }
-        emptyMsg.style.display = 'none';
 
         const sorted = [...players].sort((a, b) => a.position - b.position);
         list.innerHTML = sorted.map(p => {
@@ -406,15 +404,11 @@
 
     function renderOpenChallenges() {
         const container = document.getElementById('open-challenges');
-        const emptyMsg = document.getElementById('challenges-empty');
 
         if (challenges.length === 0) {
-            container.innerHTML = '';
-            emptyMsg.style.display = 'block';
-            container.appendChild(emptyMsg);
+            container.innerHTML = '<p class="empty-state" id="challenges-empty">No open challenges.</p>';
             return;
         }
-        emptyMsg.style.display = 'none';
 
         container.innerHTML = challenges.map(c => {
             const challenger = getPlayerById(c.challengerId);
@@ -667,7 +661,6 @@
     // --- Match History ---
     function renderHistory() {
         const container = document.getElementById('match-history-list');
-        const emptyMsg = document.getElementById('history-empty');
         const filter = document.getElementById('history-filter').value;
 
         let filtered = matches;
@@ -676,12 +669,9 @@
         }
 
         if (filtered.length === 0) {
-            container.innerHTML = '';
-            emptyMsg.style.display = 'block';
-            container.appendChild(emptyMsg);
+            container.innerHTML = '<p class="empty-state" id="history-empty">No matches recorded yet.</p>';
             return;
         }
-        emptyMsg.style.display = 'none';
 
         container.innerHTML = filtered.map(m => {
             const p1Name = getPlayerName(m.player1Id);
