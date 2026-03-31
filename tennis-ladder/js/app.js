@@ -6,27 +6,46 @@
 (function () {
     'use strict';
 
-    // --- Basic Admin Protection ---
-    const ADMIN_EMAILS = [
-        'phoenixbrute@gmail.com',
-        'jh@perspectiveeconomics.com'
-    ];
+const ADMIN_PIN = '2504';
+const ADMIN_STORAGE_KEY = 'tennisLadder_adminVerified';
 
-    let adminVerified = false;
+let adminVerified = localStorage.getItem(ADMIN_STORAGE_KEY) === 'true';
+
+if (adminVerified) {
+    document.body.classList.add('admin-enabled');
+}
+
+function enableAdminMode() {
+    adminVerified = true;
+    localStorage.setItem(ADMIN_STORAGE_KEY, 'true');
+    document.body.classList.add('admin-enabled');
+    showToast('Admin access granted');
+    renderPlayers();
+}
+
+function disableAdminMode() {
+    adminVerified = false;
+    localStorage.removeItem(ADMIN_STORAGE_KEY);
+    document.body.classList.remove('admin-enabled');
+    showToast('Admin mode disabled');
+    renderPlayers();
+}
 
 function requireAdmin() {
     if (adminVerified) return true;
 
-    const email = prompt('Admin access required');
-    if (!email || !ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
-        showToast('Not authorised', 'error');
+    const pin = prompt('Enter admin PIN');
+    if (!pin || pin !== ADMIN_PIN) {
+        showToast('Incorrect PIN', 'error');
         return false;
     }
 
-    adminVerified = true;
-    document.body.classList.add('admin-enabled');
-    showToast('Admin access granted');
+    enableAdminMode();
     return true;
+}
+
+function lockAdmin() {
+    disableAdminMode();
 }
 
 function unlockAdmin() {
@@ -795,6 +814,7 @@ function renderPlayers() {
         cancelChallenge,
         notifyChallenge,
         unlockAdmin,
+        lockAdmin,
     };
 
     // --- Real-time Sync ---
