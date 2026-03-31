@@ -14,26 +14,26 @@
 
     let adminVerified = false;
 
-    function requireAdmin() {
-        if (adminVerified) return true;
+function requireAdmin() {
+    if (adminVerified) return true;
 
-        const email = prompt('Admin access required');
-        if (!email || !ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
-            showToast('Not authorised', 'error');
-            return false;
-        }
+    const email = prompt('Admin access required');
+    if (!email || !ADMIN_EMAILS.includes(email.trim().toLowerCase())) {
+        showToast('Not authorised', 'error');
+        return false;
+    }
 
-        adminVerified = true;
-        showToast('Admin access granted');
-        refreshAll();
-        return true;
+    adminVerified = true;
+    document.body.classList.add('admin-enabled');
+    showToast('Admin access granted');
+    return true;
+}
+
+function unlockAdmin() {
+    if (requireAdmin()) {
+        renderPlayers();
     }
-    
-    function unlockAdmin() {
-        if (requireAdmin()) {
-            renderPlayers();
-        }
-    }
+}
 
     // --- Data Layer (Firebase) ---
     const db = firebase.database();
@@ -199,43 +199,39 @@
     document.getElementById('standings-filter').addEventListener('change', renderStandings);
 
     // --- Player Management ---
-    function renderPlayers() {
-        const list = document.getElementById('players-list');
-        const emptyMsg = document.getElementById('players-empty');
+function renderPlayers() {
+    const list = document.getElementById('players-list');
+    const emptyMsg = document.getElementById('players-empty');
 
-        if (players.length === 0) {
-            list.innerHTML = '';
-            emptyMsg.style.display = 'block';
-            return;
-        }
+    if (players.length === 0) {
+        list.innerHTML = '';
+        emptyMsg.style.display = 'block';
+        return;
+    }
 
-        emptyMsg.style.display = 'none';
+    emptyMsg.style.display = 'none';
 
-        const sorted = [...players].sort((a, b) => a.position - b.position);
-        list.innerHTML = sorted.map(p => {
-            const contact = [
-                p.phone ? maskPhone(p.phone) : '',
-                p.email ? maskEmail(p.email) : ''
-            ].filter(Boolean).join(' | ');
+    const sorted = [...players].sort((a, b) => a.position - b.position);
+    list.innerHTML = sorted.map(p => {
+        const contact = [
+            p.phone ? maskPhone(p.phone) : '',
+            p.email ? maskEmail(p.email) : ''
+        ].filter(Boolean).join(' | ');
 
-            const adminButtons = adminVerified ? `
+        return `<div class="player-card">
+            <div class="player-info">
+                <span class="name">#${p.position} ${escapeHtml(p.name)}</span>
+                ${contact ? `<span class="contact">${escapeHtml(contact)}</span>` : ''}
+            </div>
+            <div class="player-actions admin-only">
                 <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')" title="Edit">Edit</button>
                 <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)" title="Move up">&uarr;</button>
                 <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)" title="Move down">&darr;</button>
                 <button class="btn btn-sm btn-danger" onclick="app.removePlayer('${p.id}')">Remove</button>
-            ` : '';
-
-            return `<div class="player-card">
-                <div class="player-info">
-                    <span class="name">#${p.position} ${escapeHtml(p.name)}</span>
-                    ${contact ? `<span class="contact">${escapeHtml(contact)}</span>` : ''}
-                </div>
-                <div class="player-actions">
-                    ${adminButtons}
-                </div>
-            </div>`;
-        }).join('');
-    }
+            </div>
+        </div>`;
+    }).join('');
+}
 
     function addPlayer() {
         if (!requireAdmin()) return;
