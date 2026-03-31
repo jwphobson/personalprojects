@@ -225,7 +225,10 @@
                         <input type="email" id="player-email" placeholder="e.g. john@example.com">
                     </div>
                 </div>
-                <button class="btn btn-primary" id="add-player-btn">Add Player</button>
+                <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+                    <button class="btn btn-primary" id="add-player-btn">Add Player</button>
+                    <button class="btn btn-secondary" onclick="app.unlockAdmin()">Admin Mode</button>
+                </div>
             </div>
 
             <h3 class="mt-2">Current Players</h3>

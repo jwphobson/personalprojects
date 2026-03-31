@@ -28,6 +28,12 @@
         refreshAll();
         return true;
     }
+    
+    function unlockAdmin() {
+        if (requireAdmin()) {
+            renderPlayers();
+        }
+    }
 
     // --- Data Layer (Firebase) ---
     const db = firebase.database();
@@ -792,6 +798,7 @@
         editPlayer,
         cancelChallenge,
         notifyChallenge,
+        unlockAdmin,
     };
 
     // --- Real-time Sync ---
