@@ -372,25 +372,43 @@
 
         persist();
         showToast(`${challenger.name} has challenged ${challenged.name}!`);
-        refreshAll();
 
-        // Offer WhatsApp notification
-        const waBtn = document.getElementById('notify-whatsapp');
-        if (challenged.phone) {
-            const phone = challenged.phone.replace(/\s+/g, '').replace(/^0/, '44');
-            const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder! Get in touch to arrange your match.`;
-            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+        // Capture values before refreshAll in case of issues
+        const challengedName = challenged.name;
+        const challengerName = challenger.name;
+        const challengedPhone = challenged.phone;
 
-            document.getElementById('notify-message').textContent =
-                `Notify ${challenged.name} via WhatsApp?`;
-            waBtn.href = waUrl;
-            waBtn.style.display = '';
-        } else {
-            document.getElementById('notify-message').textContent =
-                `No phone number on file for ${challenged.name}. Add one via Manage Players > Edit to enable WhatsApp notifications.`;
-            waBtn.style.display = 'none';
-        }
-        document.getElementById('notify-modal').style.display = 'flex';
+        try { refreshAll(); } catch (e) { console.error('refreshAll error:', e); }
+
+        // Show WhatsApp notification popup after a short delay to ensure DOM is ready
+        setTimeout(function () {
+            try {
+                var waBtn = document.getElementById('notify-whatsapp');
+                var notifyMsg = document.getElementById('notify-message');
+                var notifyModal = document.getElementById('notify-modal');
+
+                if (!notifyModal || !notifyMsg || !waBtn) {
+                    console.error('Notify modal elements not found');
+                    return;
+                }
+
+                if (challengedPhone) {
+                    var phone = challengedPhone.replace(/\s+/g, '').replace(/^0/, '44');
+                    var message = 'Hi ' + challengedName + ', you\'ve been challenged by ' + challengerName + ' on the tennis ladder! Get in touch to arrange your match.';
+                    var waUrl = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
+
+                    notifyMsg.textContent = 'Notify ' + challengedName + ' via WhatsApp?';
+                    waBtn.href = waUrl;
+                    waBtn.style.display = '';
+                } else {
+                    notifyMsg.textContent = 'No phone number on file for ' + challengedName + '. Add one via Manage Players > Edit to enable WhatsApp notifications.';
+                    waBtn.style.display = 'none';
+                }
+                notifyModal.style.display = 'flex';
+            } catch (e) {
+                console.error('Notify modal error:', e);
+            }
+        }, 100);
     }
 
     document.getElementById('create-challenge-btn').addEventListener('click', createChallenge);
