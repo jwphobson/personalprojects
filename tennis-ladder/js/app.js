@@ -17,6 +17,10 @@
     document.body.classList.add("admin-enabled");
   }
 
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
   function enableAdminMode() {
     adminVerified = true;
     localStorage.setItem(ADMIN_STORAGE_KEY, "true");
@@ -61,18 +65,21 @@
   const refs = {
     players: db.ref("players"),
     challenges: db.ref("challenges"),
+    friendlyChallenges: db.ref("friendlyChallenges"),
     matches: db.ref("matches"),
     seasons: db.ref("seasons"),
   };
 
   let players = [];
   let challenges = [];
+  let friendlyChallenges = [];
   let matches = [];
   let seasons = [];
 
   function persist() {
     refs.players.set(players);
     refs.challenges.set(challenges);
+    refs.friendlyChallenges.set(friendlyChallenges);
     refs.matches.set(matches);
     refs.seasons.set(seasons);
   }
@@ -131,12 +138,25 @@
 
   function escapeHtml(str) {
     const div = document.createElement("div");
-    div.textContent = str;
+    div.textContent = str ?? "";
     return div.innerHTML;
   }
 
+  function getChallengeExpiryDate(createdAt) {
+    const created = new Date(createdAt);
+    created.setDate(created.getDate() + CHALLENGE_EXPIRY_DAYS);
+    return created;
+  }
+
+  function isExpired(item) {
+    return new Date() > getChallengeExpiryDate(item.createdAt);
+  }
+
+  // --- Toast Notification ---
   function showToast(message, type = "success") {
-    const toast = document.getElementById("toast");
+    const toast = getEl("toast");
+    if (!toast) return;
+
     toast.textContent = message;
     toast.className = "toast " + type;
     void toast.offsetWidth;
@@ -144,17 +164,28 @@
     setTimeout(() => toast.classList.remove("show"), 2500);
   }
 
+  // --- Confirmation Modal ---
   function showConfirm(title, message) {
     return new Promise((resolve) => {
-      const overlay = document.getElementById("confirm-modal");
-      document.getElementById("confirm-title").textContent = title;
-      document.getElementById("confirm-message").textContent = message;
+      const overlay = getEl("confirm-modal");
+      const titleEl = getEl("confirm-title");
+      const messageEl = getEl("confirm-message");
+      const okBtn = getEl("confirm-ok");
+      const cancelBtn = getEl("confirm-cancel");
+
+      if (!overlay || !titleEl || !messageEl || !okBtn || !cancelBtn) {
+        resolve(window.confirm(message));
+        return;
+      }
+
+      titleEl.textContent = title;
+      messageEl.textContent = message;
       overlay.style.display = "flex";
 
       function cleanup(result) {
         overlay.style.display = "none";
-        document.getElementById("confirm-ok").removeEventListener("click", onOk);
-        document.getElementById("confirm-cancel").removeEventListener("click", onCancel);
+        okBtn.removeEventListener("click", onOk);
+        cancelBtn.removeEventListener("click", onCancel);
         resolve(result);
       }
 
@@ -166,159 +197,9 @@
         cleanup(false);
       }
 
-      document.getElementById("confirm-ok").addEventListener("click", onOk);
-      document.getElementById("confirm-cancel").addEventListener("click", onCancel);
+      okBtn.addEventListener("click", onOk);
+      cancelBtn.addEventListener("click", onCancel);
     });
-  }
-
-  function getChallengeExpiryDate(createdAt) {
-    const created = new Date(createdAt);
-    created.setDate(created.getDate() + CHALLENGE_EXPIRY_DAYS);
-    return created;
-  }
-
-  function isChallengeExpired(challenge) {
-    return new Date() > getChallengeExpiryDate(challenge.createdAt);
-  }
-
-  function pruneExpiredChallenges() {
-    const before = challenges.length;
-    challenges = challenges.filter((c) => !isChallengeExpired(c));
-    if (challenges.length !== before) persist();
-  }
-
-  function getLadderChallenges() {
-    return challenges.filter((c) => (c.kind || "ladder") === "ladder");
-  }
-
-  function getFriendlyChallenges() {
-    return challenges.filter((c) => c.kind === "friendly");
-  }
-
-  function getPlayerMatches(playerId) {
-    return matches.filter((m) => m.player1Id === playerId || m.player2Id === playerId);
-  }
-
-  function parseScoreValue(id) {
-    const value = document.getElementById(id).value.trim();
-    if (value === "") return null;
-    const n = Number(value);
-    return Number.isInteger(n) && n >= 0 ? n : NaN;
-  }
-
-  function getStructuredScore(prefix) {
-    const s1p1 = parseScoreValue(`${prefix}1p1`);
-    const s1p2 = parseScoreValue(`${prefix}1p2`);
-    const s2p1 = parseScoreValue(`${prefix}2p1`);
-    const s2p2 = parseScoreValue(`${prefix}2p2`);
-    const tbp1 = parseScoreValue(`${prefix}tbp1`);
-    const tbp2 = parseScoreValue(`${prefix}tbp2`);
-
-    if ([s1p1, s1p2, s2p1, s2p2].some((v) => v === null || Number.isNaN(v))) {
-      return { error: "Enter valid scores for Set 1 and Set 2" };
-    }
-
-    if (s1p1 === s1p2 || s2p1 === s2p2) {
-      return { error: "Set scores cannot be tied" };
-    }
-
-    const set1Winner = s1p1 > s1p2 ? "p1" : "p2";
-    const set2Winner = s2p1 > s2p2 ? "p1" : "p2";
-
-    let winnerSlot;
-    let scoreText = `${s1p1}-${s1p2}, ${s2p1}-${s2p2}`;
-
-    if (set1Winner === set2Winner) {
-      winnerSlot = set1Winner;
-    } else {
-      if (tbp1 === null || tbp2 === null || Number.isNaN(tbp1) || Number.isNaN(tbp2)) {
-        return { error: "Enter a championship tie-break score when sets are split" };
-      }
-
-      if (tbp1 === tbp2) {
-        return { error: "Championship tie-break cannot be tied" };
-      }
-
-      winnerSlot = tbp1 > tbp2 ? "p1" : "p2";
-      scoreText += `, CTB ${tbp1}-${tbp2}`;
-    }
-
-    return { winnerSlot, scoreText };
-  }
-
-  function clearScoreInputs(prefix) {
-    const ids = [
-      `${prefix}1p1`,
-      `${prefix}1p2`,
-      `${prefix}2p1`,
-      `${prefix}2p2`,
-      `${prefix}tbp1`,
-      `${prefix}tbp2`,
-    ];
-
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
-    });
-  }
-
-  async function notifyChallenge(challengeId) {
-    const challenge = challenges.find((c) => c.id === challengeId);
-    if (!challenge) return;
-
-    const challenger = getPlayerById(challenge.challengerId);
-    const challenged = getPlayerById(challenge.challengedId);
-    if (!challenger || !challenged) return;
-
-    const ladderUrl = window.location.href.split("#")[0];
-    const isFriendly = challenge.kind === "friendly";
-    const title = isFriendly ? "Friendly Tennis Challenge" : "Tennis Ladder Challenge";
-    const typeText = isFriendly ? "a friendly tennis match" : "the tennis ladder";
-
-    const message = `Hi ${challenged.name}, you've been challenged by ${challenger.name} for ${typeText}. Please arrange your match within ${CHALLENGE_EXPIRY_DAYS} days.\n\nLadder: ${ladderUrl}`;
-
-    if (challenged.phone) {
-      const phone = normaliseUkPhone(challenged.phone);
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank");
-      return;
-    }
-
-    if (challenged.email) {
-      window.location.href = `mailto:${challenged.email}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(message)}`;
-      return;
-    }
-
-    if (navigator.share) {
-      navigator.share({
-        title,
-        text: message,
-        url: ladderUrl,
-      }).catch(() => {});
-      return;
-    }
-
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(message)
-        .then(() => showToast("Challenge message copied"))
-        .catch(() => showToast("Could not share challenge", "error"));
-    } else {
-      showToast("No phone or email available for this player", "error");
-    }
-  }
-
-  async function cancelChallenge(id) {
-    const challenge = challenges.find((c) => c.id === id);
-    if (!challenge) return;
-
-    const label = challenge.kind === "friendly" ? "friendly challenge" : "challenge";
-    const ok = await showConfirm("Cancel Challenge", `Are you sure you want to cancel this ${label}?`);
-    if (!ok) return;
-
-    challenges = challenges.filter((c) => c.id !== id);
-    persist();
-    showToast("Challenge cancelled");
-    refreshAll();
   }
 
   // --- Tab Navigation ---
@@ -330,23 +211,29 @@
       navButtons.forEach((b) => b.classList.remove("active"));
       tabSections.forEach((s) => s.classList.remove("active"));
       btn.classList.add("active");
-      document.getElementById(btn.dataset.tab).classList.add("active");
+      const target = getEl(btn.dataset.tab);
+      if (target) target.classList.add("active");
       refreshAll();
     });
   });
 
   // --- Standings ---
   function renderStandings() {
-    const body = document.getElementById("standings-body");
-    const emptyMsg = document.getElementById("standings-empty");
-    const filter = document.getElementById("standings-filter").value;
+    const body = getEl("standings-body");
+    const emptyMsg = getEl("standings-empty");
+    const filterEl = getEl("standings-filter");
 
+    if (!body || !emptyMsg) return;
+
+    const filter = filterEl ? filterEl.value : "all";
     const sorted = [...players].sort((a, b) => a.position - b.position);
 
     let filtered = sorted;
     if (filter === "active") {
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      filtered = sorted.filter((p) => p.lastPlayed && new Date(p.lastPlayed).getTime() > thirtyDaysAgo);
+      filtered = sorted.filter(
+        (p) => p.lastPlayed && new Date(p.lastPlayed).getTime() > thirtyDaysAgo,
+      );
     }
 
     if (filtered.length === 0) {
@@ -359,21 +246,21 @@
 
     body.innerHTML = filtered
       .map((p) => {
-        const rankClass = p.position <= 3 ? `rank-${p.position}` : "rank-default";
+        const rankClass =
+          p.position <= 3 ? `rank-${p.position}` : "rank-default";
         const challengeWins = p.challengeWins || 0;
         const challengeLosses = p.challengeLosses || 0;
         const winPct =
           challengeWins + challengeLosses > 0
             ? Math.round((challengeWins / (challengeWins + challengeLosses)) * 100) + "%"
             : "–";
-
         const streakText = p.streak
           ? p.streak > 0
             ? `W${p.streak}`
             : `L${Math.abs(p.streak)}`
           : "–";
-
-        const streakClass = p.streak > 0 ? "streak-win" : p.streak < 0 ? "streak-loss" : "";
+        const streakClass =
+          p.streak > 0 ? "streak-win" : p.streak < 0 ? "streak-loss" : "";
 
         return `<tr>
           <td class="col-rank"><span class="rank-badge ${rankClass}">${p.position}</span></td>
@@ -388,31 +275,37 @@
       .join("");
   }
 
+  const standingsFilter = getEl("standings-filter");
+  if (standingsFilter) {
+    standingsFilter.addEventListener("change", renderStandings);
+  }
+
+  // --- Friendly Standings ---
   function renderFriendlies() {
-    const body = document.getElementById("friendlies-body");
-    const emptyMsg = document.getElementById("friendlies-empty");
+    const body = getEl("friendlies-body");
+    const emptyMsg = getEl("friendlies-empty");
+
+    if (!body || !emptyMsg) return;
+
     const sorted = [...players].sort((a, b) => a.position - b.position);
 
-    const hasFriendlyData = sorted.some(
-      (p) => (p.friendlyWins || 0) > 0 || (p.friendlyLosses || 0) > 0
-    );
-
-    if (!sorted.length || !hasFriendlyData) {
+    if (sorted.length === 0) {
       body.innerHTML = "";
       emptyMsg.style.display = "block";
       return;
     }
 
-    emptyMsg.style.display = "none";
-
     body.innerHTML = sorted
       .map((p) => {
-        const rankClass = p.position <= 3 ? `rank-${p.position}` : "rank-default";
+        const rankClass =
+          p.position <= 3 ? `rank-${p.position}` : "rank-default";
         const friendlyWins = p.friendlyWins || 0;
         const friendlyLosses = p.friendlyLosses || 0;
-        const friendlyPlayed = friendlyWins + friendlyLosses;
+        const played = friendlyWins + friendlyLosses;
         const winPct =
-          friendlyPlayed > 0 ? Math.round((friendlyWins / friendlyPlayed) * 100) + "%" : "–";
+          played > 0
+            ? Math.round((friendlyWins / played) * 100) + "%"
+            : "–";
 
         return `<tr>
           <td class="col-rank"><span class="rank-badge ${rankClass}">${p.position}</span></td>
@@ -424,14 +317,16 @@
         </tr>`;
       })
       .join("");
-  }
 
-  document.getElementById("standings-filter").addEventListener("change", renderStandings);
+    emptyMsg.style.display = "none";
+  }
 
   // --- Player Management ---
   function renderPlayers() {
-    const list = document.getElementById("players-list");
-    const emptyMsg = document.getElementById("players-empty");
+    const list = getEl("players-list");
+    const emptyMsg = getEl("players-empty");
+
+    if (!list || !emptyMsg) return;
 
     if (players.length === 0) {
       list.innerHTML = "";
@@ -444,7 +339,10 @@
     const sorted = [...players].sort((a, b) => a.position - b.position);
     list.innerHTML = sorted
       .map((p) => {
-        const contact = [p.phone ? maskPhone(p.phone) : "", p.email ? maskEmail(p.email) : ""]
+        const contact = [
+          p.phone ? maskPhone(p.phone) : "",
+          p.email ? maskEmail(p.email) : "",
+        ]
           .filter(Boolean)
           .join(" | ");
 
@@ -454,8 +352,9 @@
             ${contact ? `<span class="contact">${escapeHtml(contact)}</span>` : ""}
           </div>
           <div class="player-actions admin-only">
-            <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')">Edit</button>
-            <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)">&uarr;</button>            <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)">&darr;</button>
+            <button class="btn btn-sm btn-secondary" onclick="app.editPlayer('${p.id}')" title="Edit">Edit</button>
+            <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', -1)" title="Move up">&uarr;</button>
+            <button class="btn btn-sm btn-secondary" onclick="app.movePlayer('${p.id}', 1)" title="Move down">&darr;</button>
             <button class="btn btn-sm btn-danger" onclick="app.removePlayer('${p.id}')">Remove</button>
           </div>
         </div>`;
@@ -466,9 +365,11 @@
   function addPlayer() {
     if (!requireAdmin()) return;
 
-    const nameInput = document.getElementById("player-name");
-    const phoneInput = document.getElementById("player-phone");
-    const emailInput = document.getElementById("player-email");
+    const nameInput = getEl("player-name");
+    const phoneInput = getEl("player-phone");
+    const emailInput = getEl("player-email");
+
+    if (!nameInput || !phoneInput || !emailInput) return;
 
     const name = nameInput.value.trim();
     if (!name) {
@@ -509,10 +410,15 @@
     refreshAll();
   }
 
-  document.getElementById("add-player-btn").addEventListener("click", addPlayer);
-  document.getElementById("player-name").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") addPlayer();
-  });
+  const addPlayerBtn = getEl("add-player-btn");
+  if (addPlayerBtn) addPlayerBtn.addEventListener("click", addPlayer);
+
+  const playerNameInput = getEl("player-name");
+  if (playerNameInput) {
+    playerNameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") addPlayer();
+    });
+  }
 
   async function removePlayer(id) {
     if (!requireAdmin()) return;
@@ -520,7 +426,10 @@
     const player = getPlayerById(id);
     if (!player) return;
 
-    const ok = await showConfirm("Remove Player", `Remove ${player.name} from the ladder? This cannot be undone.`);
+    const ok = await showConfirm(
+      "Remove Player",
+      `Remove ${player.name} from the ladder? This cannot be undone.`,
+    );
     if (!ok) return;
 
     const removedPos = player.position;
@@ -530,7 +439,12 @@
       if (p.position > removedPos) p.position--;
     });
 
-    challenges = challenges.filter((c) => c.challengerId !== id && c.challengedId !== id);
+    challenges = challenges.filter(
+      (c) => c.challengerId !== id && c.challengedId !== id,
+    );
+    friendlyChallenges = friendlyChallenges.filter(
+      (c) => c.challengerId !== id && c.challengedId !== id,
+    );
 
     persist();
     showToast(`${player.name} removed`);
@@ -547,93 +461,321 @@
     if (targetPos < 1 || targetPos > players.length) return;
 
     const other = players.find((p) => p.position === targetPos);
-    if (other) other.position = player.position;
-
+    if (other) {
+      other.position = player.position;
+    }
     player.position = targetPos;
 
     persist();
     refreshAll();
   }
 
+  // --- Edit Player ---
   function editPlayer(id) {
     if (!requireAdmin()) return;
 
     const player = getPlayerById(id);
     if (!player) return;
 
-    document.getElementById("edit-player-id").value = id;
-    document.getElementById("edit-player-name").value = player.name;
-    document.getElementById("edit-player-phone").value = player.phone || "";
-    document.getElementById("edit-player-email").value = player.email || "";
-    document.getElementById("edit-player-modal").style.display = "flex";
+    const idEl = getEl("edit-player-id");
+    const nameEl = getEl("edit-player-name");
+    const phoneEl = getEl("edit-player-phone");
+    const emailEl = getEl("edit-player-email");
+    const modal = getEl("edit-player-modal");
+
+    if (!idEl || !nameEl || !phoneEl || !emailEl || !modal) return;
+
+    idEl.value = id;
+    nameEl.value = player.name;
+    phoneEl.value = player.phone || "";
+    emailEl.value = player.email || "";
+    modal.style.display = "flex";
   }
 
-  document.getElementById("edit-player-cancel").addEventListener("click", () => {
-    document.getElementById("edit-player-modal").style.display = "none";
-  });
+  const editCancel = getEl("edit-player-cancel");
+  if (editCancel) {
+    editCancel.addEventListener("click", () => {
+      const modal = getEl("edit-player-modal");
+      if (modal) modal.style.display = "none";
+    });
+  }
 
-  document.getElementById("edit-player-save").addEventListener("click", () => {
-    if (!requireAdmin()) return;
+  const editSave = getEl("edit-player-save");
+  if (editSave) {
+    editSave.addEventListener("click", () => {
+      if (!requireAdmin()) return;
 
-    const id = document.getElementById("edit-player-id").value;
-    const player = getPlayerById(id);
-    if (!player) return;
+      const idEl = getEl("edit-player-id");
+      const nameEl = getEl("edit-player-name");
+      const phoneEl = getEl("edit-player-phone");
+      const emailEl = getEl("edit-player-email");
+      const modal = getEl("edit-player-modal");
 
-    const name = document.getElementById("edit-player-name").value.trim();
-    if (!name) {
-      showToast("Name cannot be empty", "error");
-      return;
+      if (!idEl || !nameEl || !phoneEl || !emailEl || !modal) return;
+
+      const id = idEl.value;
+      const player = getPlayerById(id);
+      if (!player) return;
+
+      const name = nameEl.value.trim();
+      if (!name) {
+        showToast("Name cannot be empty", "error");
+        return;
+      }
+
+      const duplicate = players.find(
+        (p) => p.id !== id && p.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (duplicate) {
+        showToast("A player with this name already exists", "error");
+        return;
+      }
+
+      player.name = name;
+      player.phone = phoneEl.value.trim();
+      player.email = emailEl.value.trim();
+
+      persist();
+      modal.style.display = "none";
+      showToast(`${name} updated`);
+      refreshAll();
+    });
+  }
+
+  // --- Challenge System ---
+  function pruneExpiredChallenges() {
+    const beforeNormal = challenges.length;
+    const beforeFriendly = friendlyChallenges.length;
+
+    challenges = challenges.filter((c) => !isExpired(c));
+    friendlyChallenges = friendlyChallenges.filter((c) => !isExpired(c));
+
+    if (
+      challenges.length !== beforeNormal ||
+      friendlyChallenges.length !== beforeFriendly
+    ) {
+      persist();
     }
+  }
 
-    const duplicate = players.find((p) => p.id !== id && p.name.toLowerCase() === name.toLowerCase());
-    if (duplicate) {
-      showToast("A player with this name already exists", "error");
-      return;
-    }
-
-    player.name = name;
-    player.phone = document.getElementById("edit-player-phone").value.trim();
-    player.email = document.getElementById("edit-player-email").value.trim();
-
-    persist();
-    document.getElementById("edit-player-modal").style.display = "none";
-    showToast(`${name} updated`);
-    refreshAll();
-  });
-
-  // --- Challenge Rendering ---
   function populateChallengerSelects() {
-    const challengerSel = document.getElementById("challenger-select");
-    const challengedSel = document.getElementById("challenged-select");
-    const sorted = [...players].sort((a, b) => a.position - b.position);
+    const challengerSel = getEl("challenger-select");
+    const challengedSel = getEl("challenged-select");
+    if (!challengerSel || !challengedSel) return;
 
+    const sorted = [...players].sort((a, b) => a.position - b.position);
     const options = sorted
-      .map((p) => `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`)
+      .map(
+        (p) =>
+          `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`,
+      )
       .join("");
 
-    challengerSel.innerHTML = '<option value="">Select challenger...</option>' + options;
-    challengedSel.innerHTML = '<option value="">Select opponent...</option>' + options;
+    challengerSel.innerHTML =
+      '<option value="">Select challenger...</option>' + options;
+    challengedSel.innerHTML =
+      '<option value="">Select opponent...</option>' + options;
   }
 
   function populateFriendlyChallengeSelects() {
-    const challengerSel = document.getElementById("friendly-challenger-select");
-    const challengedSel = document.getElementById("friendly-challenged-select");
-    const sorted = [...players].sort((a, b) => a.position - b.position);
+    const challengerSel = getEl("friendly-challenger-select");
+    const challengedSel = getEl("friendly-challenged-select");
+    if (!challengerSel || !challengedSel) return;
 
+    const sorted = [...players].sort((a, b) => a.position - b.position);
     const options = sorted
-      .map((p) => `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`)
+      .map(
+        (p) =>
+          `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`,
+      )
       .join("");
 
-    challengerSel.innerHTML = '<option value="">Select challenger...</option>' + options;
-    challengedSel.innerHTML = '<option value="">Select opponent...</option>' + options;
+    challengerSel.innerHTML =
+      '<option value="">Select challenger...</option>' + options;
+    challengedSel.innerHTML =
+      '<option value="">Select opponent...</option>' + options;
+  }
+
+  function createChallenge() {
+    const challengerId = getEl("challenger-select")?.value;
+    const challengedId = getEl("challenged-select")?.value;
+
+    if (!challengerId || !challengedId) {
+      showToast("Please select both players", "error");
+      return;
+    }
+
+    if (challengerId === challengedId) {
+      showToast("A player cannot challenge themselves", "error");
+      return;
+    }
+
+    const challenger = getPlayerById(challengerId);
+    const challenged = getPlayerById(challengedId);
+
+    if (!challenger || !challenged) return;
+
+    if (challenger.position <= challenged.position) {
+      showToast(
+        "Challenger must be ranked lower (higher number) than the opponent",
+        "error",
+      );
+      return;
+    }
+
+    if (challenger.position - challenged.position > MAX_CHALLENGE_DISTANCE) {
+      showToast(
+        `Can only challenge players within ${MAX_CHALLENGE_DISTANCE} positions above`,
+        "error",
+      );
+      return;
+    }
+
+    const existing = challenges.find(
+      (c) =>
+        (c.challengerId === challengerId && c.challengedId === challengedId) ||
+        (c.challengerId === challengedId && c.challengedId === challengerId),
+    );
+    if (existing) {
+      showToast(
+        "There is already an open challenge between these players",
+        "error",
+      );
+      return;
+    }
+
+    const newChallengeId = generateId();
+    challenges.push({
+      id: newChallengeId,
+      challengerId,
+      challengedId,
+      createdAt: new Date().toISOString(),
+    });
+
+    persist();
+    showToast(`${challenger.name} has challenged ${challenged.name}!`);
+    refreshAll();
+    notifyChallenge(newChallengeId, "challenge");
+  }
+
+  function createFriendlyChallenge() {
+    const challengerId = getEl("friendly-challenger-select")?.value;
+    const challengedId = getEl("friendly-challenged-select")?.value;
+
+    if (!challengerId || !challengedId) {
+      showToast("Please select both players", "error");
+      return;
+    }
+
+    if (challengerId === challengedId) {
+      showToast("A player cannot challenge themselves", "error");
+      return;
+    }
+
+    const challenger = getPlayerById(challengerId);
+    const challenged = getPlayerById(challengedId);
+
+    if (!challenger || !challenged) return;
+
+    const existing = friendlyChallenges.find(
+      (c) =>
+        (c.challengerId === challengerId && c.challengedId === challengedId) ||
+        (c.challengerId === challengedId && c.challengedId === challengerId),
+    );
+    if (existing) {
+      showToast(
+        "There is already an open friendly challenge between these players",
+        "error",
+      );
+      return;
+    }
+
+    const newChallengeId = generateId();
+    friendlyChallenges.push({
+      id: newChallengeId,
+      challengerId,
+      challengedId,
+      createdAt: new Date().toISOString(),
+    });
+
+    persist();
+    showToast(`${challenger.name} has invited ${challenged.name} to a friendly`);
+    refreshAll();
+    notifyChallenge(newChallengeId, "friendly");
+  }
+
+  const createChallengeBtn = getEl("create-challenge-btn");
+  if (createChallengeBtn) {
+    createChallengeBtn.addEventListener("click", createChallenge);
+  }
+
+  const createFriendlyChallengeBtn = getEl("create-friendly-challenge-btn");
+  if (createFriendlyChallengeBtn) {
+    createFriendlyChallengeBtn.addEventListener("click", createFriendlyChallenge);
+  }
+
+  async function notifyChallenge(challengeId, type = "challenge") {
+    const source = type === "friendly" ? friendlyChallenges : challenges;
+    const challenge = source.find((c) => c.id === challengeId);
+    if (!challenge) return;
+
+    const challenger = getPlayerById(challenge.challengerId);
+    const challenged = getPlayerById(challenge.challengedId);
+    if (!challenger || !challenged) return;
+
+    const ladderUrl = window.location.href.split("#")[0];
+    const message =
+      type === "friendly"
+        ? `Hi ${challenged.name}, you've been invited by ${challenger.name} to play a friendly on the tennis ladder. Please arrange your match within ${CHALLENGE_EXPIRY_DAYS} days.\n\nLadder: ${ladderUrl}`
+        : `Hi ${challenged.name}, you've been challenged by ${challenger.name} on the tennis ladder. Please arrange your match within ${CHALLENGE_EXPIRY_DAYS} days.\n\nLadder: ${ladderUrl}`;
+
+    const subject =
+      type === "friendly"
+        ? "Tennis Ladder Friendly Challenge"
+        : "Tennis Ladder Challenge";
+
+    if (challenged.phone) {
+      const phone = normaliseUkPhone(challenged.phone);
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        "_blank",
+      );
+      return;
+    }
+
+    if (challenged.email) {
+      window.location.href = `mailto:${challenged.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+      return;
+    }
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: subject,
+          text: message,
+          url: ladderUrl,
+        })
+        .catch(() => {});
+      return;
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard
+        .writeText(message)
+        .then(() => showToast("Challenge message copied"))
+        .catch(() => showToast("Could not share challenge", "error"));
+    } else {
+      showToast("No phone or email available for this player", "error");
+    }
   }
 
   function renderOpenChallenges() {
-    const container = document.getElementById("open-challenges");
-    const emptyMsg = document.getElementById("challenges-empty");
-    const ladderChallenges = getLadderChallenges();
+    const container = getEl("open-challenges");
+    const emptyMsg = getEl("challenges-empty");
 
-    if (ladderChallenges.length === 0) {
+    if (!container || !emptyMsg) return;
+
+    if (challenges.length === 0) {
       container.innerHTML = "";
       emptyMsg.style.display = "block";
       container.appendChild(emptyMsg);
@@ -642,13 +784,15 @@
 
     emptyMsg.style.display = "none";
 
-    container.innerHTML = ladderChallenges
+    container.innerHTML = challenges
       .map((c) => {
         const challenger = getPlayerById(c.challengerId);
         const challenged = getPlayerById(c.challengedId);
         if (!challenger || !challenged) return "";
 
-        const expiryDate = formatDate(getChallengeExpiryDate(c.createdAt).toISOString());
+        const expiryDate = formatDate(
+          getChallengeExpiryDate(c.createdAt).toISOString(),
+        );
 
         return `<div class="challenge-card">
           <div>
@@ -656,7 +800,7 @@
             <div class="date">Created ${formatDate(c.createdAt)} • Expires ${expiryDate}</div>
           </div>
           <div class="actions">
-            <button class="btn btn-sm btn-notify" onclick="app.notifyChallenge('${c.id}')">Notify</button>
+            <button class="btn btn-sm btn-notify" onclick="app.notifyChallenge('${c.id}', 'challenge')">Notify</button>
             <button class="btn btn-sm btn-danger" onclick="app.cancelChallenge('${c.id}')">Cancel</button>
           </div>
         </div>`;
@@ -665,9 +809,10 @@
   }
 
   function renderOpenFriendlyChallenges() {
-    const container = document.getElementById("open-friendly-challenges");
-    const emptyMsg = document.getElementById("friendly-challenges-empty");
-    const friendlyChallenges = getFriendlyChallenges();
+    const container = getEl("open-friendly-challenges");
+    const emptyMsg = getEl("friendly-challenges-empty");
+
+    if (!container || !emptyMsg) return;
 
     if (friendlyChallenges.length === 0) {
       container.innerHTML = "";
@@ -684,7 +829,9 @@
         const challenged = getPlayerById(c.challengedId);
         if (!challenger || !challenged) return "";
 
-        const expiryDate = formatDate(getChallengeExpiryDate(c.createdAt).toISOString());
+        const expiryDate = formatDate(
+          getChallengeExpiryDate(c.createdAt).toISOString(),
+        );
 
         return `<div class="challenge-card">
           <div>
@@ -692,147 +839,225 @@
             <div class="date">Created ${formatDate(c.createdAt)} • Expires ${expiryDate}</div>
           </div>
           <div class="actions">
-            <button class="btn btn-sm btn-notify" onclick="app.notifyChallenge('${c.id}')">Notify</button>
-            <button class="btn btn-sm btn-danger" onclick="app.cancelChallenge('${c.id}')">Cancel</button>
+            <button class="btn btn-sm btn-notify" onclick="app.notifyChallenge('${c.id}', 'friendly')">Notify</button>
+            <button class="btn btn-sm btn-danger" onclick="app.cancelFriendlyChallenge('${c.id}')">Cancel</button>
           </div>
         </div>`;
       })
       .join("");
   }
 
+  async function cancelChallenge(id) {
+    const ok = await showConfirm(
+      "Cancel Challenge",
+      "Are you sure you want to cancel this challenge?",
+    );
+    if (!ok) return;
+
+    challenges = challenges.filter((c) => c.id !== id);
+    persist();
+    showToast("Challenge cancelled");
+    refreshAll();
+  }
+
+  async function cancelFriendlyChallenge(id) {
+    const ok = await showConfirm(
+      "Cancel Friendly Challenge",
+      "Are you sure you want to cancel this friendly challenge?",
+    );
+    if (!ok) return;
+
+    friendlyChallenges = friendlyChallenges.filter((c) => c.id !== id);
+    persist();
+    showToast("Friendly challenge cancelled");
+    refreshAll();
+  }
+
+  async function archiveSeason() {
+    if (!requireAdmin()) return;
+
+    const ok = await showConfirm(
+      "Archive Season",
+      "Archive current season and reset ladder, matches, and challenges?",
+    );
+    if (!ok) return;
+
+    const archivedSeason = {
+      id: generateId(),
+      archivedAt: new Date().toISOString(),
+      players: [...players].sort((a, b) => a.position - b.position).map((p) => ({ ...p })),
+      challenges: challenges.map((c) => ({ ...c })),
+      friendlyChallenges: friendlyChallenges.map((c) => ({ ...c })),
+      matches: matches.map((m) => ({ ...m })),
+    };
+
+    seasons.unshift(archivedSeason);
+
+    players = [...players]
+      .sort((a, b) => a.position - b.position)
+      .map((p, index) => ({
+        ...p,
+        position: index + 1,
+        wins: 0,
+        losses: 0,
+        challengeWins: 0,
+        challengeLosses: 0,
+        friendlyWins: 0,
+        friendlyLosses: 0,
+        streak: 0,
+        lastPlayed: null,
+        lastFriendlyPlayed: null,
+      }));
+
+    challenges = [];
+    friendlyChallenges = [];
+    matches = [];
+
+    refs.seasons.set(seasons);
+    persist();
+
+    showToast("Season archived and ladder reset");
+    refreshAll();
+  }
+
+  // --- Record Results ---
+  const toggleBtns = document.querySelectorAll(".toggle-btn");
+  toggleBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggleBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const challengeForm = getEl("challenge-result-form");
+      const friendlyForm = getEl("friendly-result-form");
+      if (challengeForm) {
+        challengeForm.style.display =
+          btn.dataset.type === "challenge" ? "block" : "none";
+      }
+      if (friendlyForm) {
+        friendlyForm.style.display =
+          btn.dataset.type === "friendly" ? "block" : "none";
+      }
+    });
+  });
+
   function populateChallengeResultSelect() {
-    const sel = document.getElementById("challenge-select-result");
-    sel.innerHTML = '<option value="">Select an open ladder challenge...</option>';
+    const sel = getEl("challenge-select-result");
+    if (!sel) return;
 
-    getLadderChallenges().forEach((c) => {
+    sel.innerHTML = '<option value="">Select an open challenge...</option>';
+
+    challenges.forEach((c) => {
       const challenger = getPlayerById(c.challengerId);
       const challenged = getPlayerById(c.challengedId);
       if (!challenger || !challenged) return;
-      sel.innerHTML += `<option value="${c.id}">#${challenger.position} ${escapeHtml(challenger.name)} vs #${challenged.position} ${escapeHtml(challenged.name)}</option>`;
+
+      sel.innerHTML += `<option value="${c.id}">
+        #${challenger.position} ${escapeHtml(challenger.name)} vs #${challenged.position} ${escapeHtml(challenged.name)}
+      </option>`;
     });
   }
 
-  function populateFriendlyChallengeResultSelect() {
-    const sel = document.getElementById("friendly-challenge-select-result");
-    sel.innerHTML = '<option value="">Select an open friendly challenge...</option>';
+  function populateFriendlySelects() {
+    const player1Sel = getEl("friendly-player1");
+    const player2Sel = getEl("friendly-player2");
+    if (!player1Sel || !player2Sel) return;
 
-    getFriendlyChallenges().forEach((c) => {
-      const challenger = getPlayerById(c.challengerId);
-      const challenged = getPlayerById(c.challengedId);
-      if (!challenger || !challenged) return;
-      sel.innerHTML += `<option value="${c.id}">#${challenger.position} ${escapeHtml(challenger.name)} vs #${challenged.position} ${escapeHtml(challenged.name)}</option>`;
+    const sorted = [...players].sort((a, b) => a.position - b.position);
+    const options = sorted
+      .map(
+        (p) =>
+          `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`,
+      )
+      .join("");
+
+    player1Sel.innerHTML =
+      '<option value="">Select player...</option>' + options;
+    player2Sel.innerHTML =
+      '<option value="">Select player...</option>' + options;
+  }
+
+  function parseScoreValue(id) {
+    const el = getEl(id);
+    if (!el) return null;
+
+    const value = el.value.trim();
+    if (value === "") return null;
+
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 0 ? n : NaN;
+  }
+
+  function getStructuredScore(prefix) {
+    const s1p1 = parseScoreValue(`${prefix}1p1`);
+    const s1p2 = parseScoreValue(`${prefix}1p2`);
+    const s2p1 = parseScoreValue(`${prefix}2p1`);
+    const s2p2 = parseScoreValue(`${prefix}2p2`);
+    const tbp1 = parseScoreValue(`${prefix}tbp1`);
+    const tbp2 = parseScoreValue(`${prefix}tbp2`);
+
+    if ([s1p1, s1p2, s2p1, s2p2].some((v) => v === null || Number.isNaN(v))) {
+      return { error: "Enter valid scores for Set 1 and Set 2" };
+    }
+
+    if (s1p1 === s1p2 || s2p1 === s2p2) {
+      return { error: "Set scores cannot be tied" };
+    }
+
+    const set1Winner = s1p1 > s1p2 ? "p1" : "p2";
+    const set2Winner = s2p1 > s2p2 ? "p1" : "p2";
+
+    let winnerSlot;
+    let scoreText = `${s1p1}-${s1p2}, ${s2p1}-${s2p2}`;
+
+    if (set1Winner === set2Winner) {
+      winnerSlot = set1Winner;
+    } else {
+      if (
+        tbp1 === null ||
+        tbp2 === null ||
+        Number.isNaN(tbp1) ||
+        Number.isNaN(tbp2)
+      ) {
+        return {
+          error: "Enter a championship tie-break score when sets are split",
+        };
+      }
+
+      if (tbp1 === tbp2) {
+        return { error: "Championship tie-break cannot be tied" };
+      }
+
+      winnerSlot = tbp1 > tbp2 ? "p1" : "p2";
+      scoreText += `, CTB ${tbp1}-${tbp2}`;
+    }
+
+    return { winnerSlot, scoreText };
+  }
+
+  function clearScoreInputs(prefix) {
+    const ids = [
+      `${prefix}1p1`,
+      `${prefix}1p2`,
+      `${prefix}2p1`,
+      `${prefix}2p2`,
+      `${prefix}tbp1`,
+      `${prefix}tbp2`,
+    ];
+
+    ids.forEach((id) => {
+      const el = getEl(id);
+      if (el) el.value = "";
     });
   }
 
-  function createChallenge() {
-    const challengerId = document.getElementById("challenger-select").value;
-    const challengedId = document.getElementById("challenged-select").value;
-
-    if (!challengerId || !challengedId) {
-      showToast("Please select both players", "error");
-      return;
-    }
-
-    if (challengerId === challengedId) {
-      showToast("A player cannot challenge themselves", "error");
-      return;
-    }
-
-    const challenger = getPlayerById(challengerId);
-    const challenged = getPlayerById(challengedId);
-
-    if (challenger.position <= challenged.position) {
-      showToast("Challenger must be ranked lower than the opponent", "error");
-      return;
-    }
-
-    if (challenger.position - challenged.position > MAX_CHALLENGE_DISTANCE) {
-      showToast(`Can only challenge players within ${MAX_CHALLENGE_DISTANCE} positions above`, "error");
-      return;
-    }
-
-    const existing = getLadderChallenges().find(
-      (c) =>
-        (c.challengerId === challengerId && c.challengedId === challengedId) ||
-        (c.challengerId === challengedId && c.challengedId === challengerId)
-    );
-
-    if (existing) {
-      showToast("There is already an open ladder challenge between these players", "error");
-      return;
-    }
-
-    const newChallengeId = generateId();
-    challenges.push({
-      id: newChallengeId,
-      kind: "ladder",
-      challengerId,
-      challengedId,
-      createdAt: new Date().toISOString(),
-    });
-
-    persist();
-    showToast(`${challenger.name} has challenged ${challenged.name}!`);
-    refreshAll();
-    notifyChallenge(newChallengeId);
-  }
-
-  function createFriendlyChallenge() {
-    const challengerId = document.getElementById("friendly-challenger-select").value;
-    const challengedId = document.getElementById("friendly-challenged-select").value;
-
-    if (!challengerId || !challengedId) {
-      showToast("Please select both players", "error");
-      return;
-    }
-
-    if (challengerId === challengedId) {
-      showToast("A player cannot challenge themselves", "error");
-      return;
-    }
-
-    const challenger = getPlayerById(challengerId);
-    const challenged = getPlayerById(challengedId);
-
-    const existing = getFriendlyChallenges().find(
-      (c) =>
-        (c.challengerId === challengerId && c.challengedId === challengedId) ||
-        (c.challengerId === challengedId && c.challengedId === challengerId)
-    );
-
-    if (existing) {
-      showToast("There is already an open friendly challenge between these players", "error");
-      return;
-    }
-
-    const newChallengeId = generateId();
-    challenges.push({
-      id: newChallengeId,
-      kind: "friendly",
-      challengerId,
-      challengedId,
-      createdAt: new Date().toISOString(),
-    });
-
-    persist();
-    showToast(`${challenger.name} has challenged ${challenged.name} to a friendly!`);
-    refreshAll();
-    notifyChallenge(newChallengeId);
-  }
-
-  document.getElementById("create-challenge-btn").addEventListener("click", createChallenge);
-  document.getElementById("create-friendly-challenge-btn").addEventListener("click", createFriendlyChallenge);
-
-  // --- Result Submission ---
   function submitChallengeResult() {
-    const challengeId = document.getElementById("challenge-select-result").value;
+    const challengeId = getEl("challenge-select-result")?.value;
 
     if (!challengeId) {
       showToast("Please select a challenge", "error");
       return;
     }
 
-    const challenge = getLadderChallenges().find((c) => c.id === challengeId);
+    const challenge = challenges.find((c) => c.id === challengeId);
     if (!challenge) return;
 
     const scoreResult = getStructuredScore("s");
@@ -843,10 +1068,19 @@
 
     const challenger = getPlayerById(challenge.challengerId);
     const challenged = getPlayerById(challenge.challengedId);
-    const winnerId = scoreResult.winnerSlot === "p1" ? challenge.challengerId : challenge.challengedId;
-    const loserId = winnerId === challenge.challengerId ? challenge.challengedId : challenge.challengerId;
+    if (!challenger || !challenged) return;
+
+    const winnerId =
+      scoreResult.winnerSlot === "p1"
+        ? challenge.challengerId
+        : challenge.challengedId;
+    const loserId =
+      winnerId === challenge.challengerId
+        ? challenge.challengedId
+        : challenge.challengerId;
     const winner = getPlayerById(winnerId);
     const loser = getPlayerById(loserId);
+    if (!winner || !loser) return;
 
     let positionChange = null;
 
@@ -855,7 +1089,11 @@
       const challengedPos = challenged.position;
 
       players.forEach((p) => {
-        if (p.position >= challengedPos && p.position < oldChallengerPos && p.id !== challenger.id) {
+        if (
+          p.position >= challengedPos &&
+          p.position < oldChallengerPos &&
+          p.id !== challenger.id
+        ) {
           p.position++;
         }
       });
@@ -891,22 +1129,31 @@
 
     persist();
     clearScoreInputs("s");
-    document.getElementById("challenge-select-result").value = "";
+    const sel = getEl("challenge-select-result");
+    if (sel) sel.value = "";
 
     showToast(`Result recorded! ${winner.name} defeats ${loser.name}`);
     refreshAll();
   }
 
-  function submitFriendlyResult() {
-    const challengeId = document.getElementById("friendly-challenge-select-result").value;
+  const submitChallengeBtn = getEl("submit-challenge-result-btn");
+  if (submitChallengeBtn) {
+    submitChallengeBtn.addEventListener("click", submitChallengeResult);
+  }
 
-    if (!challengeId) {
-      showToast("Please select a friendly challenge", "error");
+  function submitFriendlyResult() {
+    const p1Id = getEl("friendly-player1")?.value;
+    const p2Id = getEl("friendly-player2")?.value;
+
+    if (!p1Id || !p2Id) {
+      showToast("Please select both players", "error");
       return;
     }
 
-    const challenge = getFriendlyChallenges().find((c) => c.id === challengeId);
-    if (!challenge) return;
+    if (p1Id === p2Id) {
+      showToast("Please select two different players", "error");
+      return;
+    }
 
     const scoreResult = getStructuredScore("fs");
     if (scoreResult.error) {
@@ -914,10 +1161,11 @@
       return;
     }
 
-    const winnerId = scoreResult.winnerSlot === "p1" ? challenge.challengerId : challenge.challengedId;
-    const loserId = winnerId === challenge.challengerId ? challenge.challengedId : challenge.challengerId;
+    const winnerId = scoreResult.winnerSlot === "p1" ? p1Id : p2Id;
+    const loserId = winnerId === p1Id ? p2Id : p1Id;
     const winner = getPlayerById(winnerId);
     const loser = getPlayerById(loserId);
+    if (!winner || !loser) return;
 
     const now = new Date().toISOString();
 
@@ -932,32 +1180,49 @@
     matches.unshift({
       id: generateId(),
       type: "friendly",
-      player1Id: challenge.challengerId,
-      player2Id: challenge.challengedId,
+      player1Id: p1Id,
+      player2Id: p2Id,
       winnerId,
       score: scoreResult.scoreText,
       positionChange: null,
       date: now,
     });
 
-    challenges = challenges.filter((c) => c.id !== challengeId);
+    // remove any matching open friendly challenge automatically
+    friendlyChallenges = friendlyChallenges.filter(
+      (c) =>
+        !(
+          (c.challengerId === p1Id && c.challengedId === p2Id) ||
+          (c.challengerId === p2Id && c.challengedId === p1Id)
+        ),
+    );
 
     persist();
     clearScoreInputs("fs");
-    document.getElementById("friendly-challenge-select-result").value = "";
 
-    showToast(`Friendly result recorded! ${winner.name} defeats ${loser.name}`);
+    const p1Sel = getEl("friendly-player1");
+    const p2Sel = getEl("friendly-player2");
+    if (p1Sel) p1Sel.value = "";
+    if (p2Sel) p2Sel.value = "";
+
+    showToast(`Friendly match recorded! ${winner.name} defeats ${loser.name}`);
     refreshAll();
   }
 
-  document.getElementById("submit-challenge-result-btn").addEventListener("click", submitChallengeResult);
-  document.getElementById("submit-friendly-result-btn").addEventListener("click", submitFriendlyResult);
+  const submitFriendlyBtn = getEl("submit-friendly-result-btn");
+  if (submitFriendlyBtn) {
+    submitFriendlyBtn.addEventListener("click", submitFriendlyResult);
+  }
 
   // --- Match History ---
   function renderHistory() {
-    const container = document.getElementById("match-history-list");
-    const emptyMsg = document.getElementById("history-empty");
-    const filter = document.getElementById("history-filter").value;
+    const container = getEl("match-history-list");
+    const emptyMsg = getEl("history-empty");
+    const filterEl = getEl("history-filter");
+
+    if (!container || !emptyMsg) return;
+
+    const filter = filterEl ? filterEl.value : "all";
 
     let filtered = matches;
     if (filter !== "all") {
@@ -979,8 +1244,10 @@
         const p2Name = getPlayerName(m.player2Id);
         const winnerName = getPlayerName(m.winnerId);
         const loserName = m.winnerId === m.player1Id ? p2Name : p1Name;
-        const typeClass = m.type === "challenge" ? "challenge-type" : "friendly-type";
-        const cardClass = m.type === "friendly" ? "match-card friendly" : "match-card";
+        const typeClass =
+          m.type === "challenge" ? "challenge-type" : "friendly-type";
+        const cardClass =
+          m.type === "friendly" ? "match-card friendly" : "match-card";
 
         return `<div class="${cardClass}">
           <div class="match-type ${typeClass}">${m.type}</div>
@@ -993,12 +1260,23 @@
       .join("");
   }
 
-  document.getElementById("history-filter").addEventListener("change", renderHistory);
+  const historyFilter = getEl("history-filter");
+  if (historyFilter) {
+    historyFilter.addEventListener("change", renderHistory);
+  }
 
   // --- Stats ---
+  function getPlayerMatches(playerId) {
+    return matches.filter(
+      (m) => m.player1Id === playerId || m.player2Id === playerId,
+    );
+  }
+
   function renderStats() {
-    const container = document.getElementById("player-stats-list");
-    const emptyMsg = document.getElementById("stats-empty");
+    const container = getEl("player-stats-list");
+    const emptyMsg = getEl("stats-empty");
+
+    if (!container || !emptyMsg) return;
 
     if (!players.length) {
       container.innerHTML = "";
@@ -1013,10 +1291,13 @@
 
     container.innerHTML = sorted
       .map((player) => {
+        const playerMatches = getPlayerMatches(player.id);
         const challengeWins = player.challengeWins || 0;
         const challengeLosses = player.challengeLosses || 0;
         const friendlyWins = player.friendlyWins || 0;
         const friendlyLosses = player.friendlyLosses || 0;
+        const totalPlayed = playerMatches.length;
+
         const challengePlayed = challengeWins + challengeLosses;
         const challengeWinPct = challengePlayed
           ? Math.round((challengeWins / challengePlayed) * 100)
@@ -1026,7 +1307,7 @@
           <div class="match-card">
             <div class="match-players">${escapeHtml(player.name)}</div>
             <div class="match-score">
-              Position: #${player.position} · Challenge Played: ${challengePlayed} · Challenge W: ${challengeWins} · Challenge L: ${challengeLosses} · Challenge Win %: ${challengeWinPct}%
+              Position: #${player.position} · Total Played: ${totalPlayed} · Challenge Played: ${challengePlayed} · Challenge W: ${challengeWins} · Challenge L: ${challengeLosses} · Challenge Win %: ${challengeWinPct}%
             </div>
             <div class="match-date">
               Friendly W: ${friendlyWins} · Friendly L: ${friendlyLosses} · Last played: ${formatDate(player.lastPlayed)}
@@ -1048,75 +1329,29 @@
     renderOpenChallenges();
     renderOpenFriendlyChallenges();
     populateChallengeResultSelect();
-    populateFriendlyChallengeResultSelect();
+    populateFriendlySelects();
     renderHistory();
     renderStats();
   }
 
-  // --- Expose inline actions ---
+  // --- Expose functions for inline onclick handlers ---
   window.app = {
     removePlayer,
     movePlayer,
     editPlayer,
     cancelChallenge,
+    cancelFriendlyChallenge,
     notifyChallenge,
     unlockAdmin,
     lockAdmin,
     archiveSeason,
   };
 
-  // --- Archive season ---
-  async function archiveSeason() {
-    if (!requireAdmin()) return;
-
-    const ok = await showConfirm(
-      "Archive Season",
-      "Archive current season and reset ladder, matches, and challenges?"
-    );
-    if (!ok) return;
-
-    const archivedPlayers = [...players].sort((a, b) => a.position - b.position).map((p) => ({ ...p }));
-    const archivedChallenges = challenges.map((c) => ({ ...c }));
-    const archivedMatches = matches.map((m) => ({ ...m }));
-
-    const archivedSeason = {
-      id: generateId(),
-      archivedAt: new Date().toISOString(),
-      players: archivedPlayers,
-      challenges: archivedChallenges,
-      matches: archivedMatches,
-    };
-
-    seasons.unshift(archivedSeason);
-
-    players = [...players]
-      .sort((a, b) => a.position - b.position)
-      .map((p, index) => ({
-        ...p,
-        position: index + 1,
-        wins: 0,
-        losses: 0,
-        challengeWins: 0,
-        challengeLosses: 0,
-        friendlyWins: 0,
-        friendlyLosses: 0,
-        streak: 0,
-        lastPlayed: null,
-        lastFriendlyPlayed: null,
-      }));
-
-    challenges = [];
-    matches = [];
-
-    persist();
-    showToast("Season archived and ladder reset");
-    refreshAll();
-  }
-
   // --- Real-time Sync ---
-  let dataLoaded = {
+  const dataLoaded = {
     players: false,
     challenges: false,
+    friendlyChallenges: false,
     matches: false,
     seasons: false,
   };
@@ -1125,6 +1360,7 @@
     return (
       dataLoaded.players &&
       dataLoaded.challenges &&
+      dataLoaded.friendlyChallenges &&
       dataLoaded.matches &&
       dataLoaded.seasons
     );
@@ -1139,6 +1375,12 @@
   refs.challenges.on("value", function (snapshot) {
     challenges = snapshot.val() || [];
     dataLoaded.challenges = true;
+    if (allDataLoaded()) refreshAll();
+  });
+
+  refs.friendlyChallenges.on("value", function (snapshot) {
+    friendlyChallenges = snapshot.val() || [];
+    dataLoaded.friendlyChallenges = true;
     if (allDataLoaded()) refreshAll();
   });
 
@@ -1168,11 +1410,16 @@
     refs.players.once("value", function (snapshot) {
       if (snapshot.val() && snapshot.val().length) return;
 
-      const localChallenges = JSON.parse(localStorage.getItem("tennisLadder_challenges")) || [];
-      const localMatches = JSON.parse(localStorage.getItem("tennisLadder_matches")) || [];
+      const localChallenges =
+        JSON.parse(localStorage.getItem("tennisLadder_challenges")) || [];
+      const localFriendlyChallenges =
+        JSON.parse(localStorage.getItem("tennisLadder_friendlyChallenges")) || [];
+      const localMatches =
+        JSON.parse(localStorage.getItem("tennisLadder_matches")) || [];
 
       refs.players.set(localPlayers);
       refs.challenges.set(localChallenges);
+      refs.friendlyChallenges.set(localFriendlyChallenges);
       refs.matches.set(localMatches);
 
       showToast("Data migrated to cloud");
@@ -1181,12 +1428,12 @@
 
   // --- Connection status ---
   db.ref(".info/connected").on("value", function (snap) {
-    const el = document.getElementById("connection-status");
-    if (el) {
-      el.textContent = snap.val() ? "Live" : "Offline";
-      el.className = snap.val()
-        ? "status-badge status-online"
-        : "status-badge status-offline";
-    }
+    const el = getEl("connection-status");
+    if (!el) return;
+
+    el.textContent = snap.val() ? "Live" : "Offline";
+    el.className = snap.val()
+      ? "status-badge status-online"
+      : "status-badge status-offline";
   });
 })();
