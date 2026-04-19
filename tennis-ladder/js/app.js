@@ -921,29 +921,11 @@
   }
 
   // --- Record Results ---
-  const toggleBtns = document.querySelectorAll(".toggle-btn");
-  toggleBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      toggleBtns.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const challengeForm = getEl("challenge-result-form");
-      const friendlyForm = getEl("friendly-result-form");
-      if (challengeForm) {
-        challengeForm.style.display =
-          btn.dataset.type === "challenge" ? "block" : "none";
-      }
-      if (friendlyForm) {
-        friendlyForm.style.display =
-          btn.dataset.type === "friendly" ? "block" : "none";
-      }
-    });
-  });
-
   function populateChallengeResultSelect() {
     const sel = getEl("challenge-select-result");
     if (!sel) return;
 
-    sel.innerHTML = '<option value="">Select an open challenge...</option>';
+    sel.innerHTML = '<option value="">Select an open ladder challenge...</option>';
 
     challenges.forEach((c) => {
       const challenger = getPlayerById(c.challengerId);
@@ -956,23 +938,21 @@
     });
   }
 
-  function populateFriendlySelects() {
-    const player1Sel = getEl("friendly-player1");
-    const player2Sel = getEl("friendly-player2");
-    if (!player1Sel || !player2Sel) return;
+  function populateFriendlyChallengeResultSelect() {
+    const sel = getEl("friendly-challenge-select-result");
+    if (!sel) return;
 
-    const sorted = [...players].sort((a, b) => a.position - b.position);
-    const options = sorted
-      .map(
-        (p) =>
-          `<option value="${p.id}">#${p.position} ${escapeHtml(p.name)}</option>`,
-      )
-      .join("");
+    sel.innerHTML = '<option value="">Select an open friendly challenge...</option>';
 
-    player1Sel.innerHTML =
-      '<option value="">Select player...</option>' + options;
-    player2Sel.innerHTML =
-      '<option value="">Select player...</option>' + options;
+    friendlyChallenges.forEach((c) => {
+      const challenger = getPlayerById(c.challengerId);
+      const challenged = getPlayerById(c.challengedId);
+      if (!challenger || !challenged) return;
+
+      sel.innerHTML += `<option value="${c.id}">
+        #${challenger.position} ${escapeHtml(challenger.name)} vs #${challenged.position} ${escapeHtml(challenged.name)}
+      </option>`;
+    });
   }
 
   function parseScoreValue(id) {
@@ -1053,7 +1033,7 @@
     const challengeId = getEl("challenge-select-result")?.value;
 
     if (!challengeId) {
-      showToast("Please select a challenge", "error");
+      showToast("Please select a ladder challenge", "error");
       return;
     }
 
@@ -1142,18 +1122,15 @@
   }
 
   function submitFriendlyResult() {
-    const p1Id = getEl("friendly-player1")?.value;
-    const p2Id = getEl("friendly-player2")?.value;
+    const challengeId = getEl("friendly-challenge-select-result")?.value;
 
-    if (!p1Id || !p2Id) {
-      showToast("Please select both players", "error");
+    if (!challengeId) {
+      showToast("Please select a friendly challenge", "error");
       return;
     }
 
-    if (p1Id === p2Id) {
-      showToast("Please select two different players", "error");
-      return;
-    }
+    const challenge = friendlyChallenges.find((c) => c.id === challengeId);
+    if (!challenge) return;
 
     const scoreResult = getStructuredScore("fs");
     if (scoreResult.error) {
@@ -1161,8 +1138,14 @@
       return;
     }
 
-    const winnerId = scoreResult.winnerSlot === "p1" ? p1Id : p2Id;
-    const loserId = winnerId === p1Id ? p2Id : p1Id;
+    const winnerId =
+      scoreResult.winnerSlot === "p1"
+        ? challenge.challengerId
+        : challenge.challengedId;
+    const loserId =
+      winnerId === challenge.challengerId
+        ? challenge.challengedId
+        : challenge.challengerId;
     const winner = getPlayerById(winnerId);
     const loser = getPlayerById(loserId);
     if (!winner || !loser) return;
@@ -1180,32 +1163,22 @@
     matches.unshift({
       id: generateId(),
       type: "friendly",
-      player1Id: p1Id,
-      player2Id: p2Id,
+      player1Id: challenge.challengerId,
+      player2Id: challenge.challengedId,
       winnerId,
       score: scoreResult.scoreText,
       positionChange: null,
       date: now,
     });
 
-    // remove any matching open friendly challenge automatically
-    friendlyChallenges = friendlyChallenges.filter(
-      (c) =>
-        !(
-          (c.challengerId === p1Id && c.challengedId === p2Id) ||
-          (c.challengerId === p2Id && c.challengedId === p1Id)
-        ),
-    );
+    friendlyChallenges = friendlyChallenges.filter((c) => c.id !== challengeId);
 
     persist();
     clearScoreInputs("fs");
+    const sel = getEl("friendly-challenge-select-result");
+    if (sel) sel.value = "";
 
-    const p1Sel = getEl("friendly-player1");
-    const p2Sel = getEl("friendly-player2");
-    if (p1Sel) p1Sel.value = "";
-    if (p2Sel) p2Sel.value = "";
-
-    showToast(`Friendly match recorded! ${winner.name} defeats ${loser.name}`);
+    showToast(`Friendly recorded! ${winner.name} defeats ${loser.name}`);
     refreshAll();
   }
 
@@ -1329,7 +1302,7 @@
     renderOpenChallenges();
     renderOpenFriendlyChallenges();
     populateChallengeResultSelect();
-    populateFriendlySelects();
+    populateFriendlyChallengeResultSelect();
     renderHistory();
     renderStats();
   }

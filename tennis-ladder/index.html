@@ -66,8 +66,9 @@
       <section id="challenge" class="tab-content">
         <h2>Issue a Ladder Challenge</h2>
         <p class="tab-description">
-          Players can challenge anyone up to <strong>2 positions</strong> above them on the ladder.
-          If the challenger wins, they take the higher position.
+          Players can challenge anyone up to <strong>2 positions</strong> above
+          them on the ladder. If the challenger wins, they take the higher
+          position.
         </p>
 
         <div class="challenge-form">
@@ -94,7 +95,9 @@
 
         <h3 class="mt-2">Open Ladder Challenges</h3>
         <div id="open-challenges" class="challenges-list">
-          <p class="empty-state" id="challenges-empty">No open ladder challenges.</p>
+          <p class="empty-state" id="challenges-empty">
+            No open ladder challenges.
+          </p>
         </div>
       </section>
 
@@ -102,7 +105,8 @@
       <section id="results" class="tab-content">
         <h2>Record Ladder Match Result</h2>
         <p class="tab-description">
-          Only official ladder challenge results go here. These can change ladder positions.
+          Only official ladder challenge results go here. These can change ladder
+          positions.
         </p>
 
         <div id="challenge-result-form" class="result-form">
@@ -167,7 +171,8 @@
       <section id="friendlies" class="tab-content">
         <h2>Friendlies</h2>
         <p class="tab-description">
-          Friendly challenges can be issued to anyone. Friendly results never affect ladder positions.
+          Friendly challenges can be issued to anyone. Friendly results never
+          affect ladder positions.
         </p>
 
         <div class="result-form">
@@ -207,7 +212,9 @@
           <h3>Record Friendly Result</h3>
 
           <div class="form-group">
-            <label for="friendly-challenge-select-result">Select Friendly Challenge</label>
+            <label for="friendly-challenge-select-result"
+              >Select Friendly Challenge</label
+            >
             <select id="friendly-challenge-select-result">
               <option value="">Select an open friendly challenge...</option>
             </select>
@@ -282,25 +289,45 @@
           <div class="form-row">
             <div class="form-group">
               <label for="player-name">Player Name</label>
-              <input type="text" id="player-name" placeholder="e.g. John Smith" />
+              <input
+                type="text"
+                id="player-name"
+                placeholder="e.g. John Smith"
+              />
             </div>
 
             <div class="form-group">
               <label for="player-phone">Phone (optional)</label>
-              <input type="tel" id="player-phone" placeholder="e.g. 07700 900000" />
+              <input
+                type="tel"
+                id="player-phone"
+                placeholder="e.g. 07700 900000"
+              />
             </div>
 
             <div class="form-group">
               <label for="player-email">Email (optional)</label>
-              <input type="email" id="player-email" placeholder="e.g. john@example.com" />
+              <input
+                type="email"
+                id="player-email"
+                placeholder="e.g. john@example.com"
+              />
             </div>
           </div>
 
           <div class="admin-controls-row">
-            <button class="btn btn-primary" id="add-player-btn">Add Player</button>
-            <button class="btn btn-secondary" onclick="app.unlockAdmin()">Admin Mode</button>
-            <button class="btn btn-secondary admin-only" onclick="app.lockAdmin()">Log Out Admin</button>
-            <button class="btn btn-danger admin-only" onclick="app.archiveSeason()">Archive Season</button>
+            <button class="btn btn-primary" id="add-player-btn">
+              Add Player
+            </button>
+            <button class="btn btn-secondary" onclick="app.unlockAdmin()">
+              Admin Mode
+            </button>
+            <button class="btn btn-secondary admin-only" onclick="app.lockAdmin()">
+              Log Out Admin
+            </button>
+            <button class="btn btn-danger admin-only" onclick="app.archiveSeason()">
+              Archive Season
+            </button>
           </div>
         </div>
 
@@ -342,12 +369,20 @@
 
         <div class="form-group" style="margin-bottom: 1rem">
           <label for="edit-player-phone">Phone</label>
-          <input type="tel" id="edit-player-phone" placeholder="e.g. 07700 900000" />
+          <input
+            type="tel"
+            id="edit-player-phone"
+            placeholder="e.g. 07700 900000"
+          />
         </div>
 
         <div class="form-group" style="margin-bottom: 1rem">
           <label for="edit-player-email">Email</label>
-          <input type="email" id="edit-player-email" placeholder="e.g. john@example.com" />
+          <input
+            type="email"
+            id="edit-player-email"
+            placeholder="e.g. john@example.com"
+          />
         </div>
 
         <div class="modal-actions">
@@ -363,7 +398,8 @@
       firebase.initializeApp({
         apiKey: "AIzaSyAkrG6AMcTVGfRaPndu_IXZY6n7jYywKz0",
         authDomain: "tennis-ladder-622be.firebaseapp.com",
-        databaseURL: "https://tennis-ladder-622be-default-rtdb.europe-west1.firebasedatabase.app",
+        databaseURL:
+          "https://tennis-ladder-622be-default-rtdb.europe-west1.firebasedatabase.app",
         projectId: "tennis-ladder-622be",
         storageBucket: "tennis-ladder-622be.firebasestorage.app",
         messagingSenderId: "255900046384",
