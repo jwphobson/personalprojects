@@ -7,7 +7,7 @@
   "use strict";
 
   const ADMIN_PIN = "2504";
-const ADMIN_STORAGE_KEY = "womensTennisLadder_adminVerified";
+  const ADMIN_STORAGE_KEY = "womenstennisLadder_adminVerified";
   const MAX_CHALLENGE_DISTANCE = 2;
   const CHALLENGE_EXPIRY_DAYS = 14;
 
@@ -62,13 +62,13 @@ const ADMIN_STORAGE_KEY = "womensTennisLadder_adminVerified";
 
   // --- Data Layer (Firebase) ---
   const db = firebase.database();
-const refs = {
-  players: db.ref("womens/players"),
-  challenges: db.ref("womens/challenges"),
-  friendlyChallenges: db.ref("womens/friendlyChallenges"),
-  matches: db.ref("womens/matches"),
-  seasons: db.ref("womens/seasons"),
-};
+  const refs = {
+    players: db.ref("womens/players"),
+    challenges: db.ref("womens/challenges"),
+    friendlyChallenges: db.ref("womens/friendlyChallenges"),
+    matches: db.ref("womens/matches"),
+    seasons: db.ref("womens/seasons"),
+  };
 
   let players = [];
   let challenges = [];
@@ -1371,32 +1371,7 @@ const refs = {
 
   // --- One-time migration from localStorage ---
   (function migrateFromLocalStorage() {
-    let localPlayers;
-    try {
-      localPlayers = JSON.parse(localStorage.getItem("tennisLadder_players"));
-    } catch (e) {
-      return;
-    }
-
-    if (!localPlayers || !localPlayers.length) return;
-
-    refs.players.once("value", function (snapshot) {
-      if (snapshot.val() && snapshot.val().length) return;
-
-      const localChallenges =
-        JSON.parse(localStorage.getItem("tennisLadder_challenges")) || [];
-      const localFriendlyChallenges =
-        JSON.parse(localStorage.getItem("tennisLadder_friendlyChallenges")) || [];
-      const localMatches =
-        JSON.parse(localStorage.getItem("tennisLadder_matches")) || [];
-
-      refs.players.set(localPlayers);
-      refs.challenges.set(localChallenges);
-      refs.friendlyChallenges.set(localFriendlyChallenges);
-      refs.matches.set(localMatches);
-
-      showToast("Data migrated to cloud");
-    });
+    return;
   })();
 
   // --- Connection status ---
